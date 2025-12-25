@@ -69,7 +69,7 @@ static int ret_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *reg
         return 0;
     }
     
-    // Check if the buffer of the IoV is readable and writable
+    /* 4.19 的 access_ok 为双参版本 */
     if (!access_ok((void __user *)data->iov.iov_base, data->iov.iov_len)) {
         printk_debug(KERN_INFO "User buffer is not accessible\n");
         return 0;
