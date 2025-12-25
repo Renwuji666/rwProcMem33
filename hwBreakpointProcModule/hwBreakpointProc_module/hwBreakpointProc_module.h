@@ -56,10 +56,19 @@ static struct hwBreakpointProcDev *g_hwBreakpointProc_devp;
 
 static ssize_t hwBreakpointProc_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
 static int hwBreakpointProc_release(struct inode *inode, struct file *filp);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 static const struct proc_ops hwBreakpointProc_proc_ops = {
     .proc_read    = hwBreakpointProc_read,
 	.proc_release = hwBreakpointProc_release,
 };
+#else
+static const struct file_operations hwBreakpointProc_proc_ops = {
+    .owner   = THIS_MODULE,
+    .read    = hwBreakpointProc_read,
+	.release = hwBreakpointProc_release,
+};
+#endif
 
 #pragma pack(1)
 struct my_user_pt_regs {
