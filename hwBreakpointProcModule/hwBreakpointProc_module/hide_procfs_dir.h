@@ -9,13 +9,14 @@
 #include <linux/moduleparam.h>
 #include <linux/fs.h>
 #include <linux/string.h>
+#include <linux/version.h>
 
 static char g_hide_dir_name[256] = {0};
 
 static filldir_t old_filldir;
 
-#if MY_LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0)
-static int my_filldir(struct dir_context *buf,
+/* 统一使用 int 返回值，兼容 4.19 的 filldir_t */
+static int my_filldir(struct dir_context *ctx,
                       const char *name,
                       int namelen,
                       loff_t offset,
@@ -27,24 +28,8 @@ static int my_filldir(struct dir_context *buf,
     {
         return 0;
     }
-    return old_filldir(buf, name, namelen, offset, ino, d_type);
-}
-#else
-static bool my_filldir(struct dir_context *ctx,
-                       const char *name,
-                       int namelen,
-                       loff_t offset,
-                       u64 ino,
-                       unsigned int d_type)
-{
-    if (namelen == strlen(g_hide_dir_name) &&
-        !strncmp(name, g_hide_dir_name, namelen))
-    {
-        return true;
-    }
     return old_filldir(ctx, name, namelen, offset, ino, d_type);
 }
-#endif
 
 static int handler_pre(struct kprobe *kp, struct pt_regs *regs)
 {
@@ -61,7 +46,6 @@ static struct kprobe kp_hide_procfs_dir = {
 
 static bool start_hide_procfs_dir(const char* hide_dir_name)
 {
-	//这里原理上可以换成SKRoot的汇编写法。避免kprobe。
     int ret;
     strlcpy(g_hide_dir_name, hide_dir_name, sizeof(g_hide_dir_name));
     ret = register_kprobe(&kp_hide_procfs_dir);
