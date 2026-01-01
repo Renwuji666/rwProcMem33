@@ -31,10 +31,19 @@ jobs:
           tar -xzf Kernel_MIUI_umi_ABI_ecee392d.tar.gz -C kernel_abi
           echo "KERNEL_ABI_DIR=$PWD/kernel_abi" >> $GITHUB_ENV
 
+      - name: fetch kernel source (matching ABI)
+        run: |
+          git clone --depth=1 https://github.com/Renwuji666/kernel_xiaomi_sm8250_mod.git kernel_src
+          cd kernel_src
+          git fetch --depth=1 origin ecee392d
+          git checkout -q ecee392d
+          echo "KERNEL_SRC=$PWD" >> $GITHUB_ENV
+
       - name: build hwBreakpointProc_module
         run: |
           MOD_DIR="$GITHUB_WORKSPACE/hwBreakpointProcModule/hwBreakpointProc_module"
-          make -C "$KERNEL_ABI_DIR" \
+          make -C "$KERNEL_SRC" \
+            O="$KERNEL_ABI_DIR" \
             M="$MOD_DIR" \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
