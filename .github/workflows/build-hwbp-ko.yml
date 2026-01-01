@@ -1,0 +1,53 @@
+name: build-hwbp-ko
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            gcc-aarch64-linux-gnu \
+            make \
+            tar \
+            xz-utils
+
+      - name: unpack kernel ABI
+        run: |
+          mkdir -p kernel_abi
+          tar -xzf Kernel_MIUI_umi_ABI_ecee392d.tar.gz -C kernel_abi
+          echo "KERNEL_ABI_DIR=$PWD/kernel_abi" >> $GITHUB_ENV
+
+      - name: build hwBreakpointProc_module
+        run: |
+          MOD_DIR="$GITHUB_WORKSPACE/hwBreakpointProcModule/hwBreakpointProc_module"
+          make -C "$KERNEL_ABI_DIR" \
+            M="$MOD_DIR" \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            modules
+
+      - name: collect artifacts
+        run: |
+          mkdir -p artifacts
+          find hwBreakpointProcModule/hwBreakpointProc_module -name "*.ko" -exec cp -v {} artifacts/ \;
+          ls -la artifacts
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hwBreakpointProc_module-ko
+          path: artifacts/*.ko
