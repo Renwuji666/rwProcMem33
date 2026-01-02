@@ -32,6 +32,7 @@ static int g_trace_mode = TRACE_MODE_PC;
 static size_t g_trace_capacity = CONFIG_TRACE_DEFAULT_SIZE;
 static size_t g_trace_step_count = CONFIG_TRACE_DEFAULT_STEP;
 static bool g_simulate_step_enabled = false;
+static const size_t g_read_mem_max = 4096;
 
 static inline s64 sign_extend_64(u64 val, int bits) {
     u64 shift = 64 - (u64)bits;
@@ -431,6 +432,40 @@ static ssize_t OnCmdCloseProcess(struct ioctl_request *hdr, char __user* buf) {
 	printk_debug(KERN_INFO "proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
 	release_proc_pid_struct(proc_pid_struct);
 	return 0;
+}
+
+static ssize_t OnCmdReadProcessMem(struct ioctl_request *hdr, char __user* buf) {
+	struct pid * proc_pid_struct = (struct pid *)hdr->param1;
+	uint64_t addr = hdr->param2;
+	size_t size = hdr->buf_size;
+	struct task_struct *task;
+	void *kbuf;
+	int read_bytes;
+	if (!proc_pid_struct || !addr || size == 0) {
+		return -EINVAL;
+	}
+	if (size > g_read_mem_max) {
+		return -EINVAL;
+	}
+	task = pid_task(proc_pid_struct, PIDTYPE_PID);
+	if (!task) {
+		return -ESRCH;
+	}
+	kbuf = kmalloc(size, GFP_KERNEL);
+	if (!kbuf) {
+		return -ENOMEM;
+	}
+	read_bytes = access_process_vm(task, addr, kbuf, size, 0);
+	if (read_bytes <= 0) {
+		kfree(kbuf);
+		return -EFAULT;
+	}
+	if (x_copy_to_user((void*)buf, kbuf, read_bytes)) {
+		kfree(kbuf);
+		return -EFAULT;
+	}
+	kfree(kbuf);
+	return read_bytes;
 }
 
 static ssize_t OnCmdGetCpuNumBrps(struct ioctl_request *hdr, char __user* buf) {
@@ -922,6 +957,8 @@ static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* bu
 		return OnCmdOpenProcess(hdr, buf);
 	case CMD_CLOSE_PROCESS:
 		return OnCmdCloseProcess(hdr, buf);
+	case CMD_READ_PROCESS_MEM:
+		return OnCmdReadProcessMem(hdr, buf);
 	case CMD_GET_NUM_BRPS:
 		return OnCmdGetCpuNumBrps(hdr, buf);
 	case CMD_GET_NUM_WRPS:
