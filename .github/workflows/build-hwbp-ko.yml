@@ -21,6 +21,8 @@ jobs:
             flex \
             libssl-dev \
             gcc-aarch64-linux-gnu \
+            clang \
+            lld \
             make \
             tar \
             xz-utils
@@ -46,7 +48,10 @@ jobs:
             O="$KERNEL_ABI_DIR" \
             M="$MOD_DIR" \
             ARCH=arm64 \
+            CC=clang \
+            LD=ld.lld \
             CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             modules
 
       - name: collect artifacts
