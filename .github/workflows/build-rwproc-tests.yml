@@ -1,0 +1,53 @@
+name: build-rwproc-tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip make
+
+      - name: download android ndk
+        run: |
+          NDK_VER=r23c
+          curl -L -o android-ndk.zip "https://dl.google.com/android/repository/android-ndk-${NDK_VER}-linux.zip"
+          unzip -q android-ndk.zip
+          echo "NDK_HOME=$PWD/android-ndk-${NDK_VER}" >> $GITHUB_ENV
+
+      - name: build testKo
+        run: |
+          cd rwProcMem33Module/testKo
+          "$NDK_HOME/ndk-build"
+
+      - name: build testMemSearch
+        run: |
+          cd rwProcMem33Module/testMemSearch
+          "$NDK_HOME/ndk-build"
+
+      - name: build testDumpMem
+        run: |
+          cd rwProcMem33Module/testDumpMem
+          "$NDK_HOME/ndk-build"
+
+      - name: collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp -v rwProcMem33Module/testKo/libs/arm64-v8a/testKo artifacts/
+          cp -v rwProcMem33Module/testMemSearch/libs/arm64-v8a/testMemSearch artifacts/
+          cp -v rwProcMem33Module/testDumpMem/libs/arm64-v8a/testDumpMem artifacts/
+          ls -la artifacts
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rwProcMem-tests-arm64
+          path: artifacts/*
