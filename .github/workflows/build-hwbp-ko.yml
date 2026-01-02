@@ -57,6 +57,17 @@ jobs:
           KERNEL_DIR="kernel_xiaomi_sm8250_mod-${KERNEL_COMMIT}"
           echo "KERNEL_SRC=$PWD/$KERNEL_DIR" >> $GITHUB_ENV
 
+      - name: sync kernel config (non-interactive)
+        run: |
+          yes "" | make -C "$KERNEL_SRC" \
+            O="$KERNEL_ABI_DIR" \
+            ARCH=arm64 \
+            CC=clang \
+            LD=ld.lld \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            olddefconfig
+
       - name: build fixdep and modpost
         run: |
           make -C "$KERNEL_SRC" \
