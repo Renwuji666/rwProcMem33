@@ -3,6 +3,7 @@
 #include "api_proxy.h"
 #include "anti_ptrace_detection.h"
 #include <asm/debug-monitors.h>
+#include <asm/sysreg.h>
 
 
 #pragma pack(push,1)
@@ -160,6 +161,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->regs_info.orig_x0 = regs->orig_x0;
 					item->regs_info.syscallno = regs->syscallno;
 					item->esr = esr;
+					item->far = read_sysreg(far_el1);
 				} else {
 					struct TRACE_ITEM_PC *items = (struct TRACE_ITEM_PC *)hwbp_handle_info->trace_buf;
 					struct TRACE_ITEM_PC *item = &items[idx];
@@ -168,6 +170,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->pc = regs->pc;
 					item->pstate = regs->pstate;
 					item->esr = esr;
+					item->far = read_sysreg(far_el1);
 				}
 				hwbp_handle_info->trace_head = (idx + 1) % hwbp_handle_info->trace_capacity;
 				if (hwbp_handle_info->trace_count < hwbp_handle_info->trace_capacity) {
