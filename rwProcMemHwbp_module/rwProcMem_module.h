@@ -23,6 +23,7 @@
 #include "proc_cmdline.h"
 #include "ver_control.h"
 #include "test.h"
+#include "rwpm_ioctl.h"
 #ifdef CONFIG_USE_PROC_FILE_NODE
 #include <linux/proc_fs.h>
 #include "hide_procfs_dir.h"
@@ -57,16 +58,24 @@ struct rwProcMemDev {
 static struct rwProcMemDev *g_rwProcMem_devp;
 
 static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
+static int rwProcMem_release(struct inode *inode, struct file *filp);
 #ifdef CONFIG_USE_PROC_FILE_NODE
 #if MY_LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static const struct file_operations rwProcMem_proc_ops = {
     .read = rwProcMem_read,
+	.release = rwProcMem_release,
 };
 #else
 static const struct proc_ops rwProcMem_proc_ops = {
     .proc_read = rwProcMem_read,
+	.proc_release = rwProcMem_release,
 };
 #endif
 #endif
+
+int hwbp_init(void);
+void hwbp_exit(void);
+ssize_t hwbp_dispatch(struct ioctl_request *hdr, char __user* buf);
+int hwbp_release(struct inode *inode, struct file *filp);
 
 #endif /* RWPROCMEM_H_ */

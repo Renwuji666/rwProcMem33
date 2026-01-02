@@ -1,5 +1,6 @@
 #ifndef VERSION_CONTROL_H_
 #define VERSION_CONTROL_H_
+#include <linux/version.h>
 
 // 独立内核模块入口模式
 #define CONFIG_MODULE_GUIDE_ENTRY
@@ -9,8 +10,30 @@
 // 隐蔽通信密钥
 #define CONFIG_PROC_NODE_AUTH_KEY "e84523d7b60d5d341a7c4d1861773ecd"
 
-// 打印内核调试信息
+// 调试打印模式
 #define CONFIG_DEBUG_PRINTK
+
+// 动态寻址模式
+#define CONFIG_KALLSYMS_LOOKUP_NAME
+
+// 使用CPU单步标志模式（真单步）
+#define CONFIG_USE_SINGLE_STEP_MODE
+
+// 精准命中记录模式（单步模式时自动关闭）
+#define CONFIG_MODIFY_HIT_NEXT_MODE
+
+// 代码追踪默认设置
+#define CONFIG_TRACE_MAX_SIZE 8192
+#define CONFIG_TRACE_DEFAULT_SIZE 1024
+#define CONFIG_TRACE_MAX_STEP 1024
+#define CONFIG_TRACE_DEFAULT_STEP 64
+
+// 反PTRACE侦测模式
+#define CONFIG_ANTI_PTRACE_DETECTION_MODE
+
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+#undef CONFIG_MODIFY_HIT_NEXT_MODE
+#endif
 
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))

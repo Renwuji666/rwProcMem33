@@ -1,15 +1,9 @@
 ﻿#include "rwProcMem_module.h"
+#include "hwbp_module.h"
 
 #define MY_TASK_COMM_LEN 16
 
 #pragma pack(push,1)
-struct ioctl_request {
-    char     cmd;        /* 1 字节命令 */
-    uint64_t param1;     /* 参数1 */
-    uint64_t param2;     /* 参数2 */
-    uint64_t param3;     /* 参数3 */
-    uint64_t buf_size;    /* 紧随其后的动态数据长度 */
-};
 struct init_device_info {
 	int pid;
 	int tgid;
@@ -147,6 +141,46 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 	return read_size;
 }
 
+ssize_t rwpm_force_read_task(struct task_struct *task, size_t proc_virt_addr, void *dst, size_t size) {
+	struct pid * proc_pid_struct;
+	size_t read_size = 0;
+	if (!task || !dst || !proc_virt_addr || size == 0) {
+		return -EINVAL;
+	}
+	proc_pid_struct = task_pid(task);
+	if (!proc_pid_struct) {
+		return -EINVAL;
+	}
+	while (read_size < size) {
+		size_t phy_addr = 0;
+		size_t pfn_sz = 0;
+		pte_t *pte;
+		bool old_pte_can_read;
+		phy_addr = get_proc_phy_addr(proc_pid_struct, proc_virt_addr + read_size, &pte);
+		if (phy_addr == 0) {
+			break;
+		}
+		old_pte_can_read = is_pte_can_read(pte);
+		if (!old_pte_can_read) {
+			if (!change_pte_read_status(pte, true)) {
+				break;
+			}
+		}
+		pfn_sz = size_inside_page(phy_addr, ((size - read_size) > PAGE_SIZE) ? PAGE_SIZE : (size - read_size));
+		if (read_ram_physical_addr(true, phy_addr, (char*)dst + read_size, pfn_sz) == 0) {
+			if (!old_pte_can_read) {
+				change_pte_read_status(pte, false);
+			}
+			break;
+		}
+		if (!old_pte_can_read) {
+			change_pte_read_status(pte, false);
+		}
+		read_size += pfn_sz;
+	}
+	return read_size;
+}
+
 static ssize_t OnCmdWriteProcessMemory(struct ioctl_request *hdr, char __user* buf) {
 	struct pid * proc_pid_struct = (struct pid *)hdr->param1;
 	size_t proc_virt_addr = (size_t)hdr->param2;
@@ -267,19 +301,26 @@ static ssize_t OnCmdGetProcessCmdlineAddr(struct ioctl_request *hdr, char __user
 	return res;
 }
 
-static ssize_t OnCmdHideKernelModule(struct ioctl_request *hdr, char __user* buf) {
-	printk_debug(KERN_INFO "CMD_HIDE_KERNEL_MODULE\n");
-
-	if (g_rwProcMem_devp->is_hidden_module == false) {
-		g_rwProcMem_devp->is_hidden_module = true; 
+int rwpm_hide_module_internal(void) {
+	if (g_rwProcMem_devp && g_rwProcMem_devp->is_hidden_module == false) {
+		g_rwProcMem_devp->is_hidden_module = true;
 		list_del_init(&__this_module.list);
 		kobject_del(&THIS_MODULE->mkobj.kobj);
 	}
 	return 0;
 }
 
+static ssize_t OnCmdHideKernelModule(struct ioctl_request *hdr, char __user* buf) {
+	printk_debug(KERN_INFO "CMD_HIDE_KERNEL_MODULE\n");
+	return rwpm_hide_module_internal();
+}
+
 static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* buf) {
-	switch (hdr->cmd) {
+	unsigned char cmd = (unsigned char)hdr->cmd;
+	if (cmd >= CMD_HWBP_BASE) {
+		return hwbp_dispatch(hdr, buf);
+	}
+	switch (cmd) {
 	case CMD_INIT_DEVICE_INFO:
 		return OnCmdInitDeviceInfo(hdr, buf);
 	case CMD_OPEN_PROCESS:
@@ -334,7 +375,16 @@ static ssize_t rwProcMem_read(struct file* filp,
     return DispatchCommand(&hdr, buf + header_size);
 }
 
+static int rwProcMem_release(struct inode *inode, struct file *filp) {
+	return hwbp_release(inode, filp);
+}
+
 static int rwProcMem_dev_init(void) {
+	int ret;
+	ret = hwbp_init();
+	if (ret) {
+		return ret;
+	}
 	g_rwProcMem_devp = x_kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	memset(g_rwProcMem_devp, 0, sizeof(struct rwProcMemDev));
 
@@ -373,6 +423,7 @@ static void rwProcMem_dev_exit(void) {
 	stop_hide_procfs_dir();
 #endif
 	kfree(g_rwProcMem_devp);
+	hwbp_exit();
 	printk(KERN_EMERG "Goodbye\n");
 }
 
@@ -405,4 +456,3 @@ unsigned long __stack_chk_guard;
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Linux");
 MODULE_DESCRIPTION("Linux default module");
-
