@@ -48,6 +48,7 @@ enum {
 	CMD_SET_TRACE_MODE,			// 设置追踪模式
 	CMD_SET_TRACE_BUFFER_SIZE,		// 设置追踪缓冲大小
 	CMD_SET_TRACE_STEP_COUNT,		// 设置追踪步数
+	CMD_SET_STEP_SIMULATE,			// 指令模拟步进
 	CMD_GET_TRACE_COUNT,			// 获取追踪记录数量
 	CMD_GET_TRACE_DATA,			// 获取追踪记录数据
 };
@@ -123,6 +124,8 @@ struct HWBP_HANDLE_INFO {
 	struct task_struct *task;
 	struct perf_event * sample_hbp;
 	struct perf_event_attr original_attr;
+	struct perf_event_attr sim_next_attr;
+	bool sim_next_active;
 	bool is_32bit_task;
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 	struct perf_event_attr next_instruction_attr;
