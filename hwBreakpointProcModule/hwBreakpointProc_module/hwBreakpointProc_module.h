@@ -97,6 +97,7 @@ struct HWBP_HANDLE_INFO {
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 	struct perf_event_attr next_instruction_attr;
 #endif
+	struct mutex hit_lock;
 	size_t hit_total_count;
 	cvector hit_item_arr;
 };
