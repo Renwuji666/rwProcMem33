@@ -43,6 +43,10 @@ jobs:
         run: |
           mkdir -p kernel_abi
           tar -xzf Kernel_MIUI_umi_ABI_ecee392d.tar.gz -C kernel_abi
+          if [ ! -f kernel_abi/.config ]; then
+            echo "kernel_abi/.config not found in ABI tar" >&2
+            exit 1
+          fi
           echo "KERNEL_ABI_DIR=$PWD/kernel_abi" >> $GITHUB_ENV
 
       - name: fetch kernel source (tarball)
@@ -53,7 +57,7 @@ jobs:
           KERNEL_DIR="kernel_xiaomi_sm8250_mod-${KERNEL_COMMIT}"
           echo "KERNEL_SRC=$PWD/$KERNEL_DIR" >> $GITHUB_ENV
 
-      - name: build kernel scripts (fixdep)
+      - name: build fixdep only
         run: |
           make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
@@ -62,7 +66,7 @@ jobs:
             LD=ld.lld \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            scripts
+            scripts/basic/fixdep
 
       - name: build hwBreakpointProc_module
         run: |
