@@ -17,6 +17,12 @@ static void (*unregister_hw_breakpoint_sym)(struct perf_event *bp);
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 static int (*modify_user_hw_breakpoint_sym)(struct perf_event *bp, struct perf_event_attr *attr);
 #endif
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+static void (*user_enable_single_step_sym)(struct task_struct *task);
+static void (*user_disable_single_step_sym)(struct task_struct *task);
+static void (*register_step_hook_sym)(struct step_hook *hook);
+static void (*unregister_step_hook_sym)(struct step_hook *hook);
+#endif
 
 static int _kallsyms_lookup_kprobe(struct kprobe *p, struct pt_regs *regs) { return 0; }
 static unsigned long get_kallsyms_func(void) {
@@ -57,6 +63,17 @@ static bool init_kallsyms_lookup(void) {
 	modify_user_hw_breakpoint_sym = (void *)generic_kallsyms_lookup_name("modify_user_hw_breakpoint");
 	printk_debug(KERN_EMERG "modify_user_hw_breakpoint_sym:%px\n", modify_user_hw_breakpoint_sym);
 	if(!modify_user_hw_breakpoint_sym) { return false; }
+#endif
+
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+	user_enable_single_step_sym = (void *)generic_kallsyms_lookup_name("user_enable_single_step");
+	printk_debug(KERN_EMERG "user_enable_single_step_sym:%px\n", user_enable_single_step_sym);
+	user_disable_single_step_sym = (void *)generic_kallsyms_lookup_name("user_disable_single_step");
+	printk_debug(KERN_EMERG "user_disable_single_step_sym:%px\n", user_disable_single_step_sym);
+	register_step_hook_sym = (void *)generic_kallsyms_lookup_name("register_step_hook");
+	printk_debug(KERN_EMERG "register_step_hook_sym:%px\n", register_step_hook_sym);
+	unregister_step_hook_sym = (void *)generic_kallsyms_lookup_name("unregister_step_hook");
+	printk_debug(KERN_EMERG "unregister_step_hook_sym:%px\n", unregister_step_hook_sym);
 #endif
 
 	return true;
