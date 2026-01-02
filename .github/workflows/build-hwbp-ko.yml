@@ -33,10 +33,11 @@ jobs:
 
       - name: fetch kernel source (matching ABI)
         run: |
-          git clone --depth=1 https://github.com/Renwuji666/kernel_xiaomi_sm8250_mod.git kernel_src
+          KERNEL_COMMIT=ecee392d0468d054443b2e4d090add1ba4882c41
+          git clone https://github.com/Renwuji666/kernel_xiaomi_sm8250_mod.git kernel_src
           cd kernel_src
-          git fetch --depth=1 origin ecee392d
-          git checkout -q ecee392d
+          git fetch --depth=1 origin $KERNEL_COMMIT
+          git checkout -q $KERNEL_COMMIT
           echo "KERNEL_SRC=$PWD" >> $GITHUB_ENV
 
       - name: build hwBreakpointProc_module
