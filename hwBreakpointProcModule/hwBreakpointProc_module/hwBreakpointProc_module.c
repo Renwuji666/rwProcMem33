@@ -2,6 +2,7 @@
 #include "proc_pid.h"
 #include "api_proxy.h"
 #include "anti_ptrace_detection.h"
+#include <asm/debug-monitors.h>
 
 
 #pragma pack(push,1)
@@ -20,6 +21,10 @@ static atomic64_t g_hook_pc;
 
 static struct mutex g_hwbp_handle_info_mutex;
 static cvector g_hwbp_handle_info_arr = NULL;
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+static struct step_hook g_step_hook;
+static bool g_step_hook_installed = false;
+#endif
 
 static void record_hit_details(struct HWBP_HANDLE_INFO *info, struct pt_regs *regs) {
     struct HWBP_HIT_ITEM hit_item = {0};
@@ -82,6 +87,38 @@ static void hwbp_hit_user_info_callback(struct perf_event *bp,
 	record_hit_details(hwbp_handle_info, regs);
 }
 
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
+	citerator iter;
+	struct task_struct *task = current;
+	int handled = DBG_HOOK_ERROR;
+	if (!task) return DBG_HOOK_ERROR;
+
+	mutex_lock(&g_hwbp_handle_info_mutex);
+	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
+		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
+		if (!hwbp_handle_info->task || hwbp_handle_info->task_id != task_pid_nr(task)) {
+			continue;
+		}
+		mutex_lock(&hwbp_handle_info->hit_lock);
+		if (hwbp_handle_info->step_pending) {
+			hwbp_handle_info->step_pending = false;
+			x_user_disable_single_step(task);
+			if (hwbp_handle_info->sample_hbp) {
+				if (x_modify_user_hw_breakpoint(hwbp_handle_info->sample_hbp, &hwbp_handle_info->original_attr)) {
+					toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 1);
+				}
+			}
+			handled = DBG_HOOK_HANDLED;
+		}
+		mutex_unlock(&hwbp_handle_info->hit_lock);
+		break;
+	}
+	mutex_unlock(&g_hwbp_handle_info_mutex);
+	return handled;
+}
+#endif
+
 /*
  * Handle hitting a HW-breakpoint.
  */
@@ -105,6 +142,24 @@ static void hwbp_handler(struct perf_event *bp,
 			continue;
 		}
 		mutex_lock(&hwbp_handle_info->hit_lock);
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+		hwbp_hit_user_info_callback(bp, data, regs, hwbp_handle_info);
+		if (hwbp_handle_info->task) {
+			struct perf_event_attr new_attr;
+			bool disabled_ok = true;
+			hwbp_handle_info->step_pending = true;
+			memcpy(&new_attr, &hwbp_handle_info->original_attr, sizeof(new_attr));
+			new_attr.disabled = 1;
+			if (x_modify_user_hw_breakpoint(bp, &new_attr)) {
+				disabled_ok = toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 0);
+			}
+			if (!disabled_ok || x_user_enable_single_step(hwbp_handle_info->task) != 0) {
+				hwbp_handle_info->step_pending = false;
+				if (x_modify_user_hw_breakpoint(bp, &hwbp_handle_info->original_attr)) {
+					toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 1);
+				}
+			}
+		}
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 		if(hwbp_handle_info->next_instruction_attr.bp_addr != regs->pc) {
 			// first hit
@@ -205,12 +260,15 @@ static ssize_t OnCmdInstProcessHwbp(struct ioctl_request *hdr, char __user* buf)
 	}
 	
 	hwbp_handle_info.task_id = pid_val;
+	hwbp_handle_info.task = task;
+	get_task_struct(task);
 	hwbp_handle_info.is_32bit_task = is_compat_thread(task_thread_info(task));
 	ptrace_breakpoint_init(&hwbp_handle_info.original_attr);
 	hwbp_handle_info.original_attr.bp_addr = proc_virt_addr;
 	hwbp_handle_info.original_attr.bp_len = hwbp_len;
 	hwbp_handle_info.original_attr.bp_type = hwbp_type;
 	hwbp_handle_info.original_attr.disabled = 0;
+	hwbp_handle_info.step_pending = false;
 
 	mutex_init(&hwbp_handle_info.hit_lock);
 
@@ -236,6 +294,7 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 	struct perf_event * sample_hbp = (struct perf_event *)hdr->param1;
 	citerator iter;
 	bool found = false;
+	struct task_struct *unreg_task = NULL;
 	printk_debug(KERN_INFO "CMD_UNINST_PROCESS_HWBP\n");
 	printk_debug(KERN_INFO "sample_hbp *:%px\n", sample_hbp);
 	if(!sample_hbp) {
@@ -247,6 +306,8 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->sample_hbp == sample_hbp) {
 			mutex_lock(&hwbp_handle_info->hit_lock);
+			unreg_task = hwbp_handle_info->task;
+			hwbp_handle_info->task = NULL;
 			if(hwbp_handle_info->hit_item_arr) {
 				cvector_destroy(hwbp_handle_info->hit_item_arr);
 				hwbp_handle_info->hit_item_arr = NULL;
@@ -260,6 +321,9 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 	}
 	mutex_unlock(&g_hwbp_handle_info_mutex);
 	if(found) {
+		if (unreg_task) {
+			put_task_struct(unreg_task);
+		}
 		x_unregister_hw_breakpoint(sample_hbp);
 	}
 	
@@ -521,6 +585,10 @@ static void clean_hwbp(void) {
 			hwbp_handle_info->sample_hbp = NULL;
 		}
 		mutex_lock(&hwbp_handle_info->hit_lock);
+		if (hwbp_handle_info->task) {
+			put_task_struct(hwbp_handle_info->task);
+			hwbp_handle_info->task = NULL;
+		}
 		if(hwbp_handle_info->hit_item_arr) {
 			cvector_destroy(hwbp_handle_info->hit_item_arr);
 			hwbp_handle_info->hit_item_arr = NULL;
@@ -561,6 +629,15 @@ static int hwBreakpointProc_dev_init(void) {
 	start_anti_ptrace_detection(&g_hwbp_handle_info_mutex, &g_hwbp_handle_info_arr);
 #endif
 
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+	g_step_hook.fn = hwbp_step_hook;
+	if (x_register_step_hook(&g_step_hook) == 0) {
+		g_step_hook_installed = true;
+	} else {
+		printk_debug(KERN_EMERG "register_step_hook failed, single-step disabled\n");
+	}
+#endif
+
 	g_hwBreakpointProc_devp = x_kmalloc(sizeof(struct hwBreakpointProcDev), GFP_KERNEL);
 	memset(g_hwBreakpointProc_devp, 0, sizeof(struct hwBreakpointProcDev));
 
@@ -588,6 +665,13 @@ static void hwBreakpointProc_dev_exit(void) {
 	
 #ifdef CONFIG_ANTI_PTRACE_DETECTION_MODE
 	stop_anti_ptrace_detection();
+#endif
+
+#ifdef CONFIG_USE_SINGLE_STEP_MODE
+	if (g_step_hook_installed) {
+		x_unregister_step_hook(&g_step_hook);
+		g_step_hook_installed = false;
+	}
 #endif
 
 	clean_hwbp();
