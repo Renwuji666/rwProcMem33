@@ -59,8 +59,9 @@ jobs:
 
       - name: sync kernel config (non-interactive)
         run: |
-          yes "" | make -C "$KERNEL_SRC" \
+          make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
+            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
             ARCH=arm64 \
             CC=clang \
             LD=ld.lld \
@@ -72,6 +73,7 @@ jobs:
         run: |
           make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
+            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
             ARCH=arm64 \
             CC=clang \
             LD=ld.lld \
@@ -80,6 +82,7 @@ jobs:
             scripts/basic/fixdep
           make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
+            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
             ARCH=arm64 \
             HOSTCC=gcc \
             scripts/mod/modpost
@@ -89,7 +92,7 @@ jobs:
           MOD_DIR="$GITHUB_WORKSPACE/hwBreakpointProcModule/hwBreakpointProc_module"
           make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
-            M="$MOD_DIR" \
+            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
             ARCH=arm64 \
             CC=clang \
             LD=ld.lld \
