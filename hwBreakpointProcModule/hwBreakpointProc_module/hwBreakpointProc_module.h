@@ -91,6 +91,7 @@ struct HWBP_HIT_ITEM {
 
 struct HWBP_HANDLE_INFO {
 	uint64_t task_id;
+	struct task_struct *task;
 	struct perf_event * sample_hbp;
 	struct perf_event_attr original_attr;
 	bool is_32bit_task;
@@ -98,6 +99,7 @@ struct HWBP_HANDLE_INFO {
 	struct perf_event_attr next_instruction_attr;
 #endif
 	struct mutex hit_lock;
+	bool step_pending;
 	size_t hit_total_count;
 	cvector hit_item_arr;
 };
