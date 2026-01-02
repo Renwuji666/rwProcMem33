@@ -55,19 +55,23 @@ jobs:
           curl -L -o kernel_src.tar.gz "https://github.com/Renwuji666/kernel_xiaomi_sm8250_mod/archive/${KERNEL_COMMIT}.tar.gz"
           tar -xzf kernel_src.tar.gz
           KERNEL_DIR="kernel_xiaomi_sm8250_mod-${KERNEL_COMMIT}"
-          echo "KERNEL_SRC=$PWD/$KERNEL_DIR" >> $GITHUB_ENV
+          mv "$KERNEL_DIR" kernel_src_tools
+          tar -xzf kernel_src.tar.gz
+          mv "$KERNEL_DIR" kernel_src_clean
+          echo "KERNEL_SRC_TOOLS=$PWD/kernel_src_tools" >> $GITHUB_ENV
+          echo "KERNEL_SRC=$PWD/kernel_src_clean" >> $GITHUB_ENV
 
-      - name: prepare source-tree .config for tools
+      - name: prepare tools source-tree .config
         run: |
-          cp -f "$KERNEL_ABI_DIR/.config" "$KERNEL_SRC/.config"
-          yes "" | make -C "$KERNEL_SRC" olddefconfig
+          cp -f "$KERNEL_ABI_DIR/.config" "$KERNEL_SRC_TOOLS/.config"
+          yes "" | make -C "$KERNEL_SRC_TOOLS" olddefconfig
 
-      - name: build scripts (source tree)
+      - name: build scripts (tools tree)
         run: |
-          yes "" | make -C "$KERNEL_SRC" HOSTCC=gcc scripts
+          yes "" | make -C "$KERNEL_SRC_TOOLS" HOSTCC=gcc scripts
           mkdir -p "$KERNEL_ABI_DIR/scripts/basic" "$KERNEL_ABI_DIR/scripts/mod"
-          cp -f "$KERNEL_SRC/scripts/basic/fixdep" "$KERNEL_ABI_DIR/scripts/basic/"
-          cp -f "$KERNEL_SRC/scripts/mod/modpost" "$KERNEL_ABI_DIR/scripts/mod/"
+          cp -f "$KERNEL_SRC_TOOLS/scripts/basic/fixdep" "$KERNEL_ABI_DIR/scripts/basic/"
+          cp -f "$KERNEL_SRC_TOOLS/scripts/mod/modpost" "$KERNEL_ABI_DIR/scripts/mod/"
 
       - name: build hwBreakpointProc_module
         run: |
