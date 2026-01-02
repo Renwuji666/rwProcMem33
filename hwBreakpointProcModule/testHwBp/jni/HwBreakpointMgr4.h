@@ -158,6 +158,13 @@ public:
 		return _InternalReadHwBpInfo(hHwbp, nHitTotalCount, vOutput);
 	}
 
+	// 驱动_清空硬件断点命中缓存
+	// 参数 hHwbp：硬件断点句柄
+	// 返回值：TRUE成功，FALSE失败
+	BOOL ClearHwBpHit(uint64_t hHwbp) {
+		return _InternalClearHwBpHit(hHwbp);
+	}
+
 	// 驱动_设置无条件Hook跳转
 	// 参数 pc：硬件执行断点触发后，要跳转到的进程内存地址
 	// 返回值：TRUE成功，FALSE失败
@@ -234,6 +241,10 @@ private:
 		return _hwbpProcDriver_ReadHwBpInfo(m_nFd, hHwbp, nHitTotalCount, vOutput);
 	}
 
+	BOOL _InternalClearHwBpHit(uint64_t hHwbp) {
+		return _hwbpProcDriver_ClearHwBpHit(m_nFd, hHwbp);
+	}
+
 	enum {
 		CMD_OPEN_PROCESS, 				// 打开进程
 		CMD_CLOSE_PROCESS, 				// 关闭进程
@@ -245,6 +256,7 @@ private:
 		CMD_RESUME_PROCESS_HWBP,		// 恢复进程硬件断点
 		CMD_GET_HWBP_HIT_COUNT,			// 获取硬件断点命中地址数量
 		CMD_GET_HWBP_HIT_DETAIL,		// 获取硬件断点命中详细信息
+		CMD_CLEAR_HWBP_HIT,				// 清空硬件断点命中缓存
 		CMD_SET_HOOK_PC,				// 设置无条件Hook跳转
 		CMD_HIDE_KERNEL_MODULE,			// 隐藏驱动
 	};
@@ -448,7 +460,18 @@ private:
 		return TRUE;
 	}
 
-	
+	BOOL _hwbpProcDriver_ClearHwBpHit(
+		int nFd,
+		uint64_t hHwbp
+	) {
+		if (nFd < 0 || !hHwbp) { return FALSE; }
+		ssize_t res = _hwbpProcDriver_MyIoctl(nFd, CMD_CLEAR_HWBP_HIT, hHwbp, 0, 0, NULL, 0);
+		if (res != 0) {
+			return FALSE;
+		}
+		return TRUE;
+	}
+
 	BOOL _hwbpProcDriver_SetHookPC(
 		int nFd,
 		uint64_t pc
