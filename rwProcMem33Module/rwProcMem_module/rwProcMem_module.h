@@ -1,4 +1,4 @@
-﻿#ifndef RWPROCMEM_H_
+#ifndef RWPROCMEM_H_
 #define RWPROCMEM_H_
 #include <linux/module.h>
 #include <linux/list.h>
@@ -57,8 +57,16 @@ struct rwProcMemDev {
 static struct rwProcMemDev *g_rwProcMem_devp;
 
 static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
-static const struct proc_ops rwProcMem_proc_ops = {
-    .proc_read    = rwProcMem_read,
+#ifdef CONFIG_USE_PROC_FILE_NODE
+#if MY_LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
+static const struct file_operations rwProcMem_proc_ops = {
+    .read = rwProcMem_read,
 };
+#else
+static const struct proc_ops rwProcMem_proc_ops = {
+    .proc_read = rwProcMem_read,
+};
+#endif
+#endif
 
 #endif /* RWPROCMEM_H_ */
