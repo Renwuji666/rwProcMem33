@@ -41,9 +41,9 @@ jobs:
       - name: collect artifacts
         run: |
           mkdir -p artifacts
-          cp -v rwProcMem33Module/testKo/libs/arm64-v8a/testKo artifacts/
-          cp -v rwProcMem33Module/testMemSearch/libs/arm64-v8a/testMemSearch artifacts/
-          cp -v rwProcMem33Module/testDumpMem/libs/arm64-v8a/testDumpMem artifacts/
+          cp -v rwProcMem33Module/testKo/libs/arm64-v8a/testKo.out artifacts/
+          cp -v rwProcMem33Module/testMemSearch/libs/arm64-v8a/testMemSearch.out artifacts/
+          cp -v rwProcMem33Module/testDumpMem/libs/arm64-v8a/testDumpMem.out artifacts/
           ls -la artifacts
 
       - name: upload artifacts
