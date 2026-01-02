@@ -23,21 +23,21 @@ jobs:
             gcc-aarch64-linux-gnu \
             make \
             tar \
-            xz-utils \
-            zstd
+            unzip \
+            xz-utils
 
-      - name: setup proton-clang
+      - name: setup proton-clang (zip)
         run: |
           PROTON_VER=20210522
-          PROTON_URL="https://github.com/kdrag0n/proton-clang/releases/download/${PROTON_VER}/proton-clang-${PROTON_VER}.tar.zst"
-          curl -fL -o proton-clang.tar.zst "$PROTON_URL"
-          tar --use-compress-program=unzstd -xf proton-clang.tar.zst
-          PROTON_DIR=$(find . -maxdepth 1 -type d -name "proton-clang-*" | head -n 1)
-          if [ -z "$PROTON_DIR" ]; then
-            echo "proton-clang directory not found" >&2
-            exit 1
+          PROTON_ROOT=$HOME/proton-clang
+          PROTON_DIR="$PROTON_ROOT/proton-clang-${PROTON_VER}"
+          if [ ! -d "$PROTON_DIR" ]; then
+            mkdir -p "$PROTON_ROOT"
+            cd "$PROTON_ROOT"
+            wget "https://github.com/kdrag0n/proton-clang/archive/refs/tags/${PROTON_VER}.zip" -O proton-clang.zip
+            unzip -q proton-clang.zip
           fi
-          echo "$PWD/$PROTON_DIR/bin" >> $GITHUB_PATH
+          echo "$PROTON_DIR/bin" >> $GITHUB_PATH
 
       - name: unpack kernel ABI
         run: |
