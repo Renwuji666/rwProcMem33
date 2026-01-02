@@ -19,6 +19,9 @@
 // 精准命中记录模式
 #define CONFIG_MODIFY_HIT_NEXT_MODE
 
+// 使用CPU单步标志模式（真单步）
+#define CONFIG_USE_SINGLE_STEP_MODE
+
 // 反PTRACE侦测模式
 #define CONFIG_ANTI_PTRACE_DETECTION_MODE
 
