@@ -57,7 +57,7 @@ jobs:
           KERNEL_DIR="kernel_xiaomi_sm8250_mod-${KERNEL_COMMIT}"
           echo "KERNEL_SRC=$PWD/$KERNEL_DIR" >> $GITHUB_ENV
 
-      - name: build fixdep only
+      - name: build fixdep and modpost
         run: |
           make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
@@ -67,6 +67,11 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             scripts/basic/fixdep
+          make -C "$KERNEL_SRC" \
+            O="$KERNEL_ABI_DIR" \
+            ARCH=arm64 \
+            HOSTCC=gcc \
+            scripts/mod/modpost
 
       - name: build hwBreakpointProc_module
         run: |
