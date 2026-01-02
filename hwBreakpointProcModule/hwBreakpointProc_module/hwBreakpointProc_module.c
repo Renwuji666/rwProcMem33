@@ -160,6 +160,7 @@ static void hwbp_handler(struct perf_event *bp,
 				}
 			}
 		}
+#else
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 		if(hwbp_handle_info->next_instruction_attr.bp_addr != regs->pc) {
 			// first hit
@@ -182,6 +183,7 @@ static void hwbp_handler(struct perf_event *bp,
 #else
 		hwbp_hit_user_info_callback(bp, data, regs, hwbp_handle_info);
 		toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 0);
+#endif
 #endif
 		mutex_unlock(&hwbp_handle_info->hit_lock);
 	}
@@ -387,7 +389,7 @@ static ssize_t OnCmdResumeProcessHwbp(struct ioctl_request *hdr, char __user* bu
 	}
 	mutex_unlock(&g_hwbp_handle_info_mutex);
 	if(found) {
-		if(!x_modify_user_hw_breakpoint(sample_hbp, &new_instruction_attr)) {
+		if(!x_modify_user_hw_breakpoint(sample_hwbp, &new_instruction_attr)) {
 			return 0;
 		}
 	}
