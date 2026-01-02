@@ -21,11 +21,23 @@ jobs:
             flex \
             libssl-dev \
             gcc-aarch64-linux-gnu \
-            clang \
-            lld \
             make \
             tar \
-            xz-utils
+            xz-utils \
+            zstd
+
+      - name: setup proton-clang
+        run: |
+          PROTON_VER=20210522
+          PROTON_URL="https://github.com/kdrag0n/proton-clang/releases/download/${PROTON_VER}/proton-clang-${PROTON_VER}.tar.zst"
+          curl -L -o proton-clang.tar.zst "$PROTON_URL"
+          tar --zstd -xf proton-clang.tar.zst
+          PROTON_DIR=$(find . -maxdepth 1 -type d -name "proton-clang-*" | head -n 1)
+          if [ -z "$PROTON_DIR" ]; then
+            echo "proton-clang directory not found" >&2
+            exit 1
+          fi
+          echo "$PWD/$PROTON_DIR/bin" >> $GITHUB_PATH
 
       - name: unpack kernel ABI
         run: |
