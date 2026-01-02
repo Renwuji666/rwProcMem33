@@ -18,6 +18,15 @@ struct hook_ptrace_data {
 static struct mutex *g_p_hwbp_handle_info_mutex = NULL;
 static cvector *g_p_hwbp_handle_info_arr = NULL;
 
+static inline bool access_ok_compat(const void __user *addr, unsigned long size)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
+    return access_ok(VERIFY_WRITE, addr, size);
+#else
+    return access_ok(addr, size);
+#endif
+}
+
 static bool is_my_hwbp_handle_addr(size_t addr) {
 	citerator iter;
 	bool found = false;
@@ -70,7 +79,7 @@ static int ret_ptrace_handler(struct kretprobe_instance *ri, struct pt_regs *reg
     }
     
     // Check if the buffer of the IoV is readable and writable
-    if (!access_ok((void __user *)data->iov.iov_base, data->iov.iov_len)) {
+    if (!access_ok_compat((void __user *)data->iov.iov_base, data->iov.iov_len)) {
         printk_debug(KERN_INFO "User buffer is not accessible\n");
         return 0;
     }
