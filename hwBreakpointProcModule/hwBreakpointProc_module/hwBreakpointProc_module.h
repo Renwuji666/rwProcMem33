@@ -47,6 +47,7 @@ enum {
 	CMD_SET_TRACE_ENABLE,			// 开关代码追踪
 	CMD_SET_TRACE_MODE,			// 设置追踪模式
 	CMD_SET_TRACE_BUFFER_SIZE,		// 设置追踪缓冲大小
+	CMD_SET_TRACE_STEP_COUNT,		// 设置追踪步数
 	CMD_GET_TRACE_COUNT,			// 获取追踪记录数量
 	CMD_GET_TRACE_DATA,			// 获取追踪记录数据
 };
@@ -124,6 +125,7 @@ struct HWBP_HANDLE_INFO {
 #endif
 	struct mutex hit_lock;
 	bool step_pending;
+	size_t step_remaining;
 	size_t hit_total_count;
 	cvector hit_item_arr;
 	void *trace_buf;
