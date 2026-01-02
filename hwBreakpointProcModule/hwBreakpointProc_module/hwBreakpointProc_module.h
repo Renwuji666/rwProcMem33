@@ -33,6 +33,7 @@
 enum {
 	CMD_OPEN_PROCESS, 				// 打开进程
 	CMD_CLOSE_PROCESS, 				// 关闭进程
+	CMD_READ_PROCESS_MEM, 			// 读取进程内存
 	CMD_GET_NUM_BRPS, 				// 获取CPU硬件执行断点支持数量
 	CMD_GET_NUM_WRPS, 				// 获取CPU硬件访问断点支持数量
 	CMD_INST_PROCESS_HWBP,			// 安装进程硬件断点
