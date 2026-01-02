@@ -13,7 +13,11 @@ static void x_unregister_hw_breakpoint(struct perf_event *bp) {
 }
 
 static int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_attr *attr) {
+#ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 	return modify_user_hw_breakpoint_sym(bp, attr);
+#else
+	return modify_user_hw_breakpoint(bp, attr);
+#endif
 }
 
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
