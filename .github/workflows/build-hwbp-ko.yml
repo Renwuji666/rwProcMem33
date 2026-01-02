@@ -57,6 +57,11 @@ jobs:
           KERNEL_DIR="kernel_xiaomi_sm8250_mod-${KERNEL_COMMIT}"
           echo "KERNEL_SRC=$PWD/$KERNEL_DIR" >> $GITHUB_ENV
 
+      - name: prepare source-tree .config for tools
+        run: |
+          cp -f "$KERNEL_ABI_DIR/.config" "$KERNEL_SRC/.config"
+          yes "" | make -C "$KERNEL_SRC" olddefconfig
+
       - name: build fixdep and modpost (source tree)
         run: |
           make -C "$KERNEL_SRC" \
@@ -66,7 +71,7 @@ jobs:
           cp -f "$KERNEL_SRC/scripts/basic/fixdep" "$KERNEL_ABI_DIR/scripts/basic/"
           cp -f "$KERNEL_SRC/scripts/mod/modpost" "$KERNEL_ABI_DIR/scripts/mod/"
 
-      - name: sync kernel config (non-interactive)
+      - name: sync kernel config for module build
         run: |
           yes "" | make -C "$KERNEL_SRC" \
             O="$KERNEL_ABI_DIR" \
