@@ -29,6 +29,7 @@ static bool g_step_hook_installed = false;
 static bool g_trace_enabled = false;
 static int g_trace_mode = TRACE_MODE_PC;
 static size_t g_trace_capacity = CONFIG_TRACE_DEFAULT_SIZE;
+static size_t g_trace_step_count = CONFIG_TRACE_DEFAULT_STEP;
 
 static void record_hit_details(struct HWBP_HANDLE_INFO *info, struct pt_regs *regs) {
     struct HWBP_HIT_ITEM hit_item = {0};
@@ -145,7 +146,6 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 		}
 		mutex_lock(&hwbp_handle_info->hit_lock);
 		if (hwbp_handle_info->step_pending) {
-			hwbp_handle_info->step_pending = false;
 			if (g_trace_enabled && hwbp_handle_info->trace_buf && hwbp_handle_info->trace_capacity) {
 				size_t idx = hwbp_handle_info->trace_head;
 				if (g_trace_mode == TRACE_MODE_FULL) {
@@ -172,6 +172,15 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					hwbp_handle_info->trace_count++;
 				}
 			}
+			if (hwbp_handle_info->step_remaining > 0) {
+				hwbp_handle_info->step_remaining--;
+			}
+			if (hwbp_handle_info->step_remaining > 0) {
+				handled = DBG_HOOK_HANDLED;
+				mutex_unlock(&hwbp_handle_info->hit_lock);
+				break;
+			}
+			hwbp_handle_info->step_pending = false;
 			x_user_disable_single_step(task);
 			if (hwbp_handle_info->sample_hbp) {
 				if (x_modify_user_hw_breakpoint(hwbp_handle_info->sample_hbp, &hwbp_handle_info->original_attr)) {
@@ -217,6 +226,7 @@ static void hwbp_handler(struct perf_event *bp,
 			struct perf_event_attr new_attr;
 			bool disabled_ok = true;
 			hwbp_handle_info->step_pending = true;
+			hwbp_handle_info->step_remaining = g_trace_enabled ? (g_trace_step_count ? g_trace_step_count : 1) : 1;
 			memcpy(&new_attr, &hwbp_handle_info->original_attr, sizeof(new_attr));
 			new_attr.disabled = 1;
 			if (x_modify_user_hw_breakpoint(bp, &new_attr)) {
@@ -341,6 +351,7 @@ static ssize_t OnCmdInstProcessHwbp(struct ioctl_request *hdr, char __user* buf)
 	hwbp_handle_info.original_attr.bp_type = hwbp_type;
 	hwbp_handle_info.original_attr.disabled = 0;
 	hwbp_handle_info.step_pending = false;
+	hwbp_handle_info.step_remaining = 0;
 	hwbp_handle_info.trace_buf = NULL;
 	hwbp_handle_info.trace_capacity = 0;
 	hwbp_handle_info.trace_item_size = 0;
@@ -562,7 +573,7 @@ static ssize_t OnCmdClearHwbpHit(struct ioctl_request *hdr, char __user* buf) {
 	struct perf_event *sample_hbp = (struct perf_event *)hdr->param1;
 	citerator iter;
 	printk_debug(KERN_INFO "CMD_CLEAR_HWBP_HIT\n");
-	printk_debug(KERN_INFO "sample_hbp *:%px\n", sample_hbp);
+	printk_debug(KERN_INFO "sample_hwbp *:%px\n", sample_hbp);
 	if(!sample_hbp) {
 		return -EFAULT;
 	}
@@ -664,6 +675,15 @@ static ssize_t OnCmdSetTraceBufferSize(struct ioctl_request *hdr, char __user* b
 		mutex_unlock(&info->hit_lock);
 	}
 	mutex_unlock(&g_hwbp_handle_info_mutex);
+	return 0;
+}
+
+static ssize_t OnCmdSetTraceStepCount(struct ioctl_request *hdr, char __user* buf) {
+	size_t count = (size_t)hdr->param1;
+	if (count == 0 || count > CONFIG_TRACE_MAX_STEP) {
+		return -EINVAL;
+	}
+	g_trace_step_count = count;
 	return 0;
 }
 
@@ -772,6 +792,8 @@ static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* bu
 		return OnCmdSetTraceMode(hdr, buf);
 	case CMD_SET_TRACE_BUFFER_SIZE:
 		return OnCmdSetTraceBufferSize(hdr, buf);
+	case CMD_SET_TRACE_STEP_COUNT:
+		return OnCmdSetTraceStepCount(hdr, buf);
 	case CMD_GET_TRACE_COUNT:
 		return OnCmdGetTraceCount(hdr, buf);
 	case CMD_GET_TRACE_DATA:
