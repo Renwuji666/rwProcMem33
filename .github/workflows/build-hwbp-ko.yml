@@ -69,29 +69,30 @@ jobs:
           cp -f "$KERNEL_SRC/scripts/basic/fixdep" "$KERNEL_ABI_DIR/scripts/basic/"
           cp -f "$KERNEL_SRC/scripts/mod/modpost" "$KERNEL_ABI_DIR/scripts/mod/"
 
-      - name: sync kernel config for module build
+      - name: build hwBreakpointProc_module
         run: |
+          MOD_DIR="$GITHUB_WORKSPACE/hwBreakpointProcModule/hwBreakpointProc_module"
+          OUT_DIR="$GITHUB_WORKSPACE/kernel_build"
+          mkdir -p "$OUT_DIR"
+          cp -f "$KERNEL_ABI_DIR/.config" "$OUT_DIR/.config"
           yes "" | make -C "$KERNEL_SRC" \
-            O="$KERNEL_ABI_DIR" \
-            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
+            O="$OUT_DIR" \
+            KCONFIG_CONFIG="$OUT_DIR/.config" \
             ARCH=arm64 \
             CC=clang \
             LD=ld.lld \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             olddefconfig
-
-      - name: build hwBreakpointProc_module
-        run: |
-          MOD_DIR="$GITHUB_WORKSPACE/hwBreakpointProcModule/hwBreakpointProc_module"
           make -C "$KERNEL_SRC" \
-            O="$KERNEL_ABI_DIR" \
-            KCONFIG_CONFIG="$KERNEL_ABI_DIR/.config" \
+            O="$OUT_DIR" \
+            KCONFIG_CONFIG="$OUT_DIR/.config" \
             ARCH=arm64 \
             CC=clang \
             LD=ld.lld \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
+            M="$MOD_DIR" \
             modules
 
       - name: collect artifacts
