@@ -62,11 +62,9 @@ jobs:
           cp -f "$KERNEL_ABI_DIR/.config" "$KERNEL_SRC/.config"
           yes "" | make -C "$KERNEL_SRC" olddefconfig
 
-      - name: build fixdep and modpost (source tree)
+      - name: build scripts (source tree)
         run: |
-          make -C "$KERNEL_SRC" \
-            HOSTCC=gcc \
-            scripts/basic/fixdep scripts/mod/modpost
+          yes "" | make -C "$KERNEL_SRC" HOSTCC=gcc scripts
           mkdir -p "$KERNEL_ABI_DIR/scripts/basic" "$KERNEL_ABI_DIR/scripts/mod"
           cp -f "$KERNEL_SRC/scripts/basic/fixdep" "$KERNEL_ABI_DIR/scripts/basic/"
           cp -f "$KERNEL_SRC/scripts/mod/modpost" "$KERNEL_ABI_DIR/scripts/mod/"
