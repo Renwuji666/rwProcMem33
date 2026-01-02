@@ -159,6 +159,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->regs_info.pstate = regs->pstate;
 					item->regs_info.orig_x0 = regs->orig_x0;
 					item->regs_info.syscallno = regs->syscallno;
+					item->esr = esr;
 				} else {
 					struct TRACE_ITEM_PC *items = (struct TRACE_ITEM_PC *)hwbp_handle_info->trace_buf;
 					struct TRACE_ITEM_PC *item = &items[idx];
@@ -166,6 +167,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->hit_time = ktime_get_real_seconds();
 					item->pc = regs->pc;
 					item->pstate = regs->pstate;
+					item->esr = esr;
 				}
 				hwbp_handle_info->trace_head = (idx + 1) % hwbp_handle_info->trace_capacity;
 				if (hwbp_handle_info->trace_count < hwbp_handle_info->trace_capacity) {
@@ -176,6 +178,8 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 				hwbp_handle_info->step_remaining--;
 			}
 			if (hwbp_handle_info->step_remaining > 0) {
+				// some kernels clear single-step on exception, re-enable for next step
+				x_user_enable_single_step(task);
 				handled = DBG_HOOK_HANDLED;
 				mutex_unlock(&hwbp_handle_info->hit_lock);
 				break;
@@ -573,7 +577,7 @@ static ssize_t OnCmdClearHwbpHit(struct ioctl_request *hdr, char __user* buf) {
 	struct perf_event *sample_hbp = (struct perf_event *)hdr->param1;
 	citerator iter;
 	printk_debug(KERN_INFO "CMD_CLEAR_HWBP_HIT\n");
-	printk_debug(KERN_INFO "sample_hwbp *:%px\n", sample_hbp);
+	printk_debug(KERN_INFO "sample_hbp *:%px\n", sample_hbp);
 	if(!sample_hbp) {
 		return -EFAULT;
 	}
