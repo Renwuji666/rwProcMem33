@@ -93,12 +93,12 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 	size_t read_size = 0;
 
 	printk_debug(KERN_INFO "CMD_READ_PROCESS_MEMORY\n");
-
 	printk_debug(KERN_INFO "READ proc_pid_struct*:0x%p,size:%ld\n", (void*)proc_pid_struct, sizeof(proc_pid_struct));
-
 	printk_debug(KERN_INFO "READ proc_virt_addr:0x%zx,size:%ld\n", proc_virt_addr, sizeof(proc_virt_addr));
+	printk_debug(KERN_INFO "READ size:%zu force:%d\n", size, is_force_read ? 1 : 0);
 
 	if (is_force_read == false && !check_proc_map_can_read(proc_pid_struct, proc_virt_addr, size)) {
+		printk_debug(KERN_INFO "READ check_proc_map_can_read failed\n");
 		return -EFAULT;
 	}
 
@@ -113,16 +113,21 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 		printk_debug(KERN_INFO "calc phy_addr:0x%zx\n", phy_addr);
 
 		if (phy_addr == 0) {
+			printk_debug(KERN_INFO "READ get_proc_phy_addr failed at 0x%zx\n", proc_virt_addr + read_size);
 			break;
 		}
 
 		old_pte_can_read = is_pte_can_read(pte);
 		if (is_force_read) {
 			if (!old_pte_can_read) {
-				if (!change_pte_read_status(pte, true)) { break; }
+				if (!change_pte_read_status(pte, true)) {
+					printk_debug(KERN_INFO "READ change_pte_read_status enable failed\n");
+					break;
+				}
 
 			}
 		} else if (!old_pte_can_read) {
+			printk_debug(KERN_INFO "READ pte not readable and not force\n");
 			break;
 		} 
 
@@ -138,6 +143,7 @@ static ssize_t OnCmdReadProcessMemory(struct ioctl_request *hdr, char __user* bu
 		}
 		read_size += pfn_sz;
 	}
+	printk_debug(KERN_INFO "READ done size:%zu\n", read_size);
 	return read_size;
 }
 
