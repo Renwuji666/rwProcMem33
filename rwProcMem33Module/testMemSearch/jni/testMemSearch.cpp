@@ -1,4 +1,4 @@
-﻿#include <cstdio>
+#include <cstdio>
 #include <string.h> 
 #include <stdlib.h>
 #include <unistd.h>
@@ -490,6 +490,7 @@ void reverse_search(CMemoryReaderWriter* pRwDriver, uint64_t hProcess, size_t nW
 		//newBeteenVal.val2 = 0x780e7f56e0 + 0x250;
 		//newBeteenVal.markContext.u64Ctx = 0x780e7f56e0;//传递保存一个标值地址
 		//vWaitSearchBetweenVal.push_back(newBeteenVal);
+
 		vBetweenValSearchResult.clear();
 
 		SearchBatchBetweenValue<uint64_t>(
@@ -613,16 +614,16 @@ int main(int argc, char *argv[]) {
 		"======================================================\n"
 		"本驱动名称: Linux ARM64 硬件读写进程内存驱动39\n"
 		"本驱动接口列表：\n"
-		"\t1.	驱动_打开进程: OpenProcess\n"
-		"\t2.	驱动_读取进程内存: ReadProcessMemory\n"
-		"\t3.	驱动_写入进程内存: WriteProcessMemory\n"
-		"\t4.	驱动_关闭进程: CloseHandle\n"
-		"\t5.	驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）\n"
-		"\t6.	驱动_获取进程PID列表: GetPidList\n"
-		"\t7.	驱动_提升进程权限到Root: SetProcessRoot\n"
-		"\t8.	驱动_获取进程物理内存占用大小: GetProcessPhyMemSize\n"
-		"\t9.	驱动_获取进程命令行: GetProcessCmdline\n"
-		"\t10.	驱动_隐藏驱动: HideKernelModule\n"
+		"\t1.\t驱动_打开进程: OpenProcess\n"
+		"\t2.\t驱动_读取进程内存: ReadProcessMemory\n"
+		"\t3.\t驱动_写入进程内存: WriteProcessMemory\n"
+		"\t4.\t驱动_关闭进程: CloseHandle\n"
+		"\t5.\t驱动_获取进程内存块列表: VirtualQueryExFull（可选：显示全部内存、仅显示物理内存）\n"
+		"\t6.\t驱动_获取进程PID列表: GetPidList\n"
+		"\t7.\t驱动_提升进程权限到Root: SetProcessRoot\n"
+		"\t8.\t驱动_获取进程物理内存占用大小: GetProcessPhyMemSize\n"
+		"\t9.\t驱动_获取进程命令行: GetProcessCmdline\n"
+		"\t10.\t驱动_隐藏驱动: HideKernelModule\n"
 		"\t以上所有功能不注入、不附加进程，不打开进程任何文件，所有操作均为内核操作\n"
 		"======================================================\n"
 	);
@@ -645,8 +646,11 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	//获取目标进程PID
 	const char *name = "com.miui.calculator";
+	if (argc > 2) {
+		name = argv[2];
+	}
+	//获取目标进程PID
 	pid_t pid = findPID(&rwDriver, name);
 	if (pid == 0) {
 		printf("找不到进程\n");
