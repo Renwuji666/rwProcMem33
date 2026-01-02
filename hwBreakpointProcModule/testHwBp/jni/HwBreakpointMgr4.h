@@ -1,4 +1,4 @@
-﻿#ifndef HW_BREAKPOINT_MANAGER_H_
+#ifndef HW_BREAKPOINT_MANAGER_H_
 #define HW_BREAKPOINT_MANAGER_H_
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <filesystem>
 #include "IoctlBufferPool.h"
-#include <linux\perf_event.h>
+#include <linux/perf_event.h>
 
 typedef int BOOL;
 #define TRUE 1
