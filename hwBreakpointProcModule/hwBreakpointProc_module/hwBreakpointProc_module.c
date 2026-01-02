@@ -264,6 +264,8 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->regs_info.syscallno = regs->syscallno;
 					item->esr = esr;
 					item->far = read_sysreg(far_el1);
+					item->insn = 0;
+					x_copy_from_user(&item->insn, (void*)regs->pc, sizeof(item->insn));
 				} else {
 					struct TRACE_ITEM_PC *items = (struct TRACE_ITEM_PC *)hwbp_handle_info->trace_buf;
 					struct TRACE_ITEM_PC *item = &items[idx];
@@ -273,6 +275,8 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					item->pstate = regs->pstate;
 					item->esr = esr;
 					item->far = read_sysreg(far_el1);
+					item->insn = 0;
+					x_copy_from_user(&item->insn, (void*)regs->pc, sizeof(item->insn));
 				}
 				hwbp_handle_info->trace_head = (idx + 1) % hwbp_handle_info->trace_capacity;
 				if (hwbp_handle_info->trace_count < hwbp_handle_info->trace_capacity) {
