@@ -31,6 +31,108 @@ static bool g_trace_enabled = false;
 static int g_trace_mode = TRACE_MODE_PC;
 static size_t g_trace_capacity = CONFIG_TRACE_DEFAULT_SIZE;
 static size_t g_trace_step_count = CONFIG_TRACE_DEFAULT_STEP;
+static bool g_simulate_step_enabled = false;
+
+static inline s64 sign_extend_64(u64 val, int bits) {
+    u64 shift = 64 - (u64)bits;
+    return (s64)((val << shift)) >> shift;
+}
+
+static inline bool aarch64_cond_passed(u32 cond, u64 pstate) {
+    int N = (pstate >> 31) & 1;
+    int Z = (pstate >> 30) & 1;
+    int C = (pstate >> 29) & 1;
+    int V = (pstate >> 28) & 1;
+    switch (cond & 0xf) {
+    case 0x0: return Z == 1;                // EQ
+    case 0x1: return Z == 0;                // NE
+    case 0x2: return C == 1;                // CS/HS
+    case 0x3: return C == 0;                // CC/LO
+    case 0x4: return N == 1;                // MI
+    case 0x5: return N == 0;                // PL
+    case 0x6: return V == 1;                // VS
+    case 0x7: return V == 0;                // VC
+    case 0x8: return C == 1 && Z == 0;      // HI
+    case 0x9: return C == 0 || Z == 1;      // LS
+    case 0xa: return N == V;                // GE
+    case 0xb: return N != V;                // LT
+    case 0xc: return Z == 0 && N == V;      // GT
+    case 0xd: return Z == 1 || N != V;      // LE
+    case 0xe: return true;                  // AL
+    default:  return false;                 // NV
+    }
+}
+
+static bool read_user_insn(u64 pc, u32 *insn) {
+    if (!insn || !pc) return false;
+    return x_copy_from_user(insn, (void *)pc, sizeof(*insn)) == 0;
+}
+
+static u64 calc_next_pc(struct pt_regs *regs, u32 insn) {
+    u64 pc = regs->pc;
+    u64 next = pc + 4;
+
+    if ((insn & 0x7C000000) == 0x14000000) { // B
+        s64 imm = sign_extend_64((insn & 0x03ffffff) << 2, 28);
+        return pc + imm;
+    }
+    if ((insn & 0x7C000000) == 0x94000000) { // BL
+        s64 imm = sign_extend_64((insn & 0x03ffffff) << 2, 28);
+        return pc + imm;
+    }
+    if ((insn & 0xFF000010) == 0x54000000) { // B.cond
+        u32 cond = insn & 0xf;
+        s64 imm = sign_extend_64(((insn >> 5) & 0x7ffff) << 2, 21);
+        if (aarch64_cond_passed(cond, regs->pstate)) {
+            return pc + imm;
+        }
+        return next;
+    }
+    if ((insn & 0x7F000000) == 0x34000000) { // CBZ
+        u32 rt = insn & 0x1f;
+        bool is64 = (insn >> 31) & 1;
+        u64 val = is64 ? regs->regs[rt] : (u32)regs->regs[rt];
+        s64 imm = sign_extend_64(((insn >> 5) & 0x7ffff) << 2, 21);
+        if (val == 0) return pc + imm;
+        return next;
+    }
+    if ((insn & 0x7F000000) == 0x35000000) { // CBNZ
+        u32 rt = insn & 0x1f;
+        bool is64 = (insn >> 31) & 1;
+        u64 val = is64 ? regs->regs[rt] : (u32)regs->regs[rt];
+        s64 imm = sign_extend_64(((insn >> 5) & 0x7ffff) << 2, 21);
+        if (val != 0) return pc + imm;
+        return next;
+    }
+    if ((insn & 0x7F000000) == 0x36000000 || (insn & 0x7F000000) == 0x37000000) { // TBZ/TBNZ
+        bool tbnz = (insn & 0x01000000) != 0;
+        u32 rt = insn & 0x1f;
+        u32 b5 = (insn >> 31) & 1;
+        u32 b40 = (insn >> 19) & 0x1f;
+        u32 bit = (b5 << 5) | b40;
+        u64 val = regs->regs[rt];
+        bool bit_set = ((val >> bit) & 1) != 0;
+        s64 imm = sign_extend_64(((insn >> 5) & 0x3fff) << 2, 16);
+        if ((tbnz && bit_set) || (!tbnz && !bit_set)) {
+            return pc + imm;
+        }
+        return next;
+    }
+    if ((insn & 0xFFFFFC1F) == 0xD61F0000) { // BR
+        u32 rn = (insn >> 5) & 0x1f;
+        return (rn == 31) ? regs->sp : regs->regs[rn];
+    }
+    if ((insn & 0xFFFFFC1F) == 0xD63F0000) { // BLR
+        u32 rn = (insn >> 5) & 0x1f;
+        return (rn == 31) ? regs->sp : regs->regs[rn];
+    }
+    if ((insn & 0xFFFFFC1F) == 0xD65F0000) { // RET
+        u32 rn = (insn >> 5) & 0x1f;
+        return (rn == 31) ? regs->sp : regs->regs[rn];
+    }
+
+    return next;
+}
 
 static void record_hit_details(struct HWBP_HANDLE_INFO *info, struct pt_regs *regs) {
     struct HWBP_HIT_ITEM hit_item = {0};
@@ -229,7 +331,26 @@ static void hwbp_handler(struct perf_event *bp,
 		mutex_lock(&hwbp_handle_info->hit_lock);
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
 		hwbp_hit_user_info_callback(bp, data, regs, hwbp_handle_info);
-		if (hwbp_handle_info->task) {
+		if (g_simulate_step_enabled && hwbp_handle_info->task &&
+		    hwbp_handle_info->original_attr.bp_type == HW_BREAKPOINT_X) {
+			struct perf_event_attr new_attr;
+			u32 insn = 0;
+			u64 next_pc = regs->pc + 4;
+			if (read_user_insn(regs->pc, &insn)) {
+				next_pc = calc_next_pc(regs, insn);
+			}
+			memcpy(&new_attr, &hwbp_handle_info->original_attr, sizeof(new_attr));
+			new_attr.bp_addr = next_pc;
+			new_attr.bp_len = HW_BREAKPOINT_LEN_4;
+			new_attr.bp_type = HW_BREAKPOINT_X;
+			new_attr.disabled = 0;
+			if (x_modify_user_hw_breakpoint(bp, &new_attr)) {
+				toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 0);
+			} else {
+				hwbp_handle_info->sim_next_attr = new_attr;
+				hwbp_handle_info->sim_next_active = true;
+			}
+		} else if (hwbp_handle_info->task) {
 			struct perf_event_attr new_attr;
 			bool disabled_ok = true;
 			hwbp_handle_info->step_pending = true;
@@ -357,6 +478,7 @@ static ssize_t OnCmdInstProcessHwbp(struct ioctl_request *hdr, char __user* buf)
 	hwbp_handle_info.original_attr.bp_len = hwbp_len;
 	hwbp_handle_info.original_attr.bp_type = hwbp_type;
 	hwbp_handle_info.original_attr.disabled = 0;
+	hwbp_handle_info.sim_next_active = false;
 	hwbp_handle_info.step_pending = false;
 	hwbp_handle_info.step_remaining = 0;
 	hwbp_handle_info.trace_buf = NULL;
@@ -694,6 +816,29 @@ static ssize_t OnCmdSetTraceStepCount(struct ioctl_request *hdr, char __user* bu
 	return 0;
 }
 
+static ssize_t OnCmdSetStepSimulate(struct ioctl_request *hdr, char __user* buf) {
+	bool enable = hdr->param1 ? true : false;
+	citerator iter;
+	g_simulate_step_enabled = enable;
+	if (enable) {
+		return 0;
+	}
+	mutex_lock(&g_hwbp_handle_info_mutex);
+	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
+		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
+		mutex_lock(&info->hit_lock);
+		if (info->sim_next_active && info->sample_hbp) {
+			if (x_modify_user_hw_breakpoint(info->sample_hbp, &info->original_attr)) {
+				toggle_bp_registers_directly(&info->original_attr, info->is_32bit_task, 1);
+			}
+			info->sim_next_active = false;
+		}
+		mutex_unlock(&info->hit_lock);
+	}
+	mutex_unlock(&g_hwbp_handle_info_mutex);
+	return 0;
+}
+
 static ssize_t OnCmdGetTraceCount(struct ioctl_request *hdr, char __user* buf) {
 	#pragma pack(1)
 	struct trace_count_data {
@@ -801,6 +946,8 @@ static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* bu
 		return OnCmdSetTraceBufferSize(hdr, buf);
 	case CMD_SET_TRACE_STEP_COUNT:
 		return OnCmdSetTraceStepCount(hdr, buf);
+	case CMD_SET_STEP_SIMULATE:
+		return OnCmdSetStepSimulate(hdr, buf);
 	case CMD_GET_TRACE_COUNT:
 		return OnCmdGetTraceCount(hdr, buf);
 	case CMD_GET_TRACE_DATA:
