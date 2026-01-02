@@ -44,6 +44,11 @@ enum {
 	CMD_CLEAR_HWBP_HIT,				// 清空硬件断点命中缓存
 	CMD_SET_HOOK_PC,				// 设置无条件Hook跳转
 	CMD_HIDE_KERNEL_MODULE,			// 隐藏驱动
+	CMD_SET_TRACE_ENABLE,			// 开关代码追踪
+	CMD_SET_TRACE_MODE,			// 设置追踪模式
+	CMD_SET_TRACE_BUFFER_SIZE,		// 设置追踪缓冲大小
+	CMD_GET_TRACE_COUNT,			// 获取追踪记录数量
+	CMD_GET_TRACE_DATA,			// 获取追踪记录数据
 };
 
 struct hwBreakpointProcDev {
@@ -89,6 +94,25 @@ struct HWBP_HIT_ITEM {
 };
 #pragma pack()
 
+
+enum {
+	TRACE_MODE_PC = 0,
+	TRACE_MODE_FULL = 1,
+};
+
+#pragma pack(1)
+struct TRACE_ITEM_PC {
+	uint64_t task_id;
+	uint64_t hit_time;
+	uint64_t pc;
+	uint64_t pstate;
+};
+struct TRACE_ITEM_FULL {
+	uint64_t task_id;
+	uint64_t hit_time;
+	struct my_user_pt_regs regs_info;
+};
+#pragma pack()
 struct HWBP_HANDLE_INFO {
 	uint64_t task_id;
 	struct task_struct *task;
@@ -102,6 +126,11 @@ struct HWBP_HANDLE_INFO {
 	bool step_pending;
 	size_t hit_total_count;
 	cvector hit_item_arr;
+	void *trace_buf;
+	size_t trace_capacity;
+	size_t trace_item_size;
+	size_t trace_head;
+	size_t trace_count;
 };
 
 #endif /* _HWBP_PROC_H_ */
