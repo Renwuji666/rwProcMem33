@@ -41,6 +41,7 @@ enum {
 	CMD_RESUME_PROCESS_HWBP,		// 恢复进程硬件断点
 	CMD_GET_HWBP_HIT_COUNT,			// 获取硬件断点命中地址数量
 	CMD_GET_HWBP_HIT_DETAIL,		// 获取硬件断点命中详细信息
+	CMD_CLEAR_HWBP_HIT,				// 清空硬件断点命中缓存
 	CMD_SET_HOOK_PC,				// 设置无条件Hook跳转
 	CMD_HIDE_KERNEL_MODULE,			// 隐藏驱动
 };
