@@ -110,6 +110,7 @@ struct TRACE_ITEM_PC {
 	uint64_t pstate;
 	uint64_t far;
 	uint64_t esr;
+	uint32_t insn;
 };
 struct TRACE_ITEM_FULL {
 	uint64_t task_id;
@@ -117,6 +118,7 @@ struct TRACE_ITEM_FULL {
 	struct my_user_pt_regs regs_info;
 	uint64_t far;
 	uint64_t esr;
+	uint32_t insn;
 };
 #pragma pack()
 struct HWBP_HANDLE_INFO {
