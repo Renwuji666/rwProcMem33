@@ -107,12 +107,14 @@ struct TRACE_ITEM_PC {
 	uint64_t hit_time;
 	uint64_t pc;
 	uint64_t pstate;
+	uint64_t far;
 	uint64_t esr;
 };
 struct TRACE_ITEM_FULL {
 	uint64_t task_id;
 	uint64_t hit_time;
 	struct my_user_pt_regs regs_info;
+	uint64_t far;
 	uint64_t esr;
 };
 #pragma pack()
