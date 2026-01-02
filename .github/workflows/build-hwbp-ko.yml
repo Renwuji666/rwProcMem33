@@ -75,6 +75,9 @@ jobs:
           OUT_DIR="$GITHUB_WORKSPACE/kernel_build"
           mkdir -p "$OUT_DIR"
           cp -f "$KERNEL_ABI_DIR/.config" "$OUT_DIR/.config"
+          if [ -f "$KERNEL_ABI_DIR/Module.symvers" ]; then
+            cp -f "$KERNEL_ABI_DIR/Module.symvers" "$OUT_DIR/Module.symvers"
+          fi
           yes "" | make -C "$KERNEL_SRC" \
             O="$OUT_DIR" \
             KCONFIG_CONFIG="$OUT_DIR/.config" \
@@ -84,6 +87,15 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             olddefconfig
+          make -C "$KERNEL_SRC" \
+            O="$OUT_DIR" \
+            KCONFIG_CONFIG="$OUT_DIR/.config" \
+            ARCH=arm64 \
+            CC=clang \
+            LD=ld.lld \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            modules_prepare
           make -C "$KERNEL_SRC" \
             O="$OUT_DIR" \
             KCONFIG_CONFIG="$OUT_DIR/.config" \
