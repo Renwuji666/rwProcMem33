@@ -27,6 +27,80 @@ static size_t g_trace_step_count = CONFIG_TRACE_DEFAULT_STEP;
 static bool g_simulate_step_enabled = false;
 static const size_t g_read_mem_max = 4096;
 
+// -------- 调试寄存器备份与清理，降低暴露窗口 --------
+#define HWBP_MAX_SLOTS 16
+struct dbg_regs_snapshot {
+    u64 bvr[HWBP_MAX_SLOTS];
+    u64 bcr[HWBP_MAX_SLOTS];
+    u64 wvr[HWBP_MAX_SLOTS];
+    u64 wcr[HWBP_MAX_SLOTS];
+};
+static DEFINE_PER_CPU(struct dbg_regs_snapshot, g_dbg_regs_bak);
+
+static void save_dbg_regs_cpu(void *unused)
+{
+    int nb = getCpuNumBrps();
+    int nw = getCpuNumWrps();
+    if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
+    if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
+    struct dbg_regs_snapshot *bak = this_cpu_ptr(&g_dbg_regs_bak);
+    for (int i = 0; i < nb; ++i) {
+        bak->bvr[i] = read_wb_reg(AARCH64_DBG_REG_BVR, i);
+        bak->bcr[i] = read_wb_reg(AARCH64_DBG_REG_BCR, i);
+    }
+    for (int i = 0; i < nw; ++i) {
+        bak->wvr[i] = read_wb_reg(AARCH64_DBG_REG_WVR, i);
+        bak->wcr[i] = read_wb_reg(AARCH64_DBG_REG_WCR, i);
+    }
+}
+
+static void clear_dbg_regs_cpu(void *unused)
+{
+    int nb = getCpuNumBrps();
+    int nw = getCpuNumWrps();
+    if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
+    if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
+    for (int i = 0; i < nb; ++i) {
+        write_wb_reg(AARCH64_DBG_REG_BCR, i, 0);
+        write_wb_reg(AARCH64_DBG_REG_BVR, i, 0);
+    }
+    for (int i = 0; i < nw; ++i) {
+        write_wb_reg(AARCH64_DBG_REG_WCR, i, 0);
+        write_wb_reg(AARCH64_DBG_REG_WVR, i, 0);
+    }
+    isb();
+}
+
+static void restore_dbg_regs_cpu(void *unused)
+{
+    int nb = getCpuNumBrps();
+    int nw = getCpuNumWrps();
+    if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
+    if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
+    struct dbg_regs_snapshot *bak = this_cpu_ptr(&g_dbg_regs_bak);
+    for (int i = 0; i < nb; ++i) {
+        write_wb_reg(AARCH64_DBG_REG_BVR, i, bak->bvr[i]);
+        write_wb_reg(AARCH64_DBG_REG_BCR, i, bak->bcr[i]);
+    }
+    for (int i = 0; i < nw; ++i) {
+        write_wb_reg(AARCH64_DBG_REG_WVR, i, bak->wvr[i]);
+        write_wb_reg(AARCH64_DBG_REG_WCR, i, bak->wcr[i]);
+    }
+    isb();
+}
+
+static inline void clear_dbg_regs_all_cpus(void)
+{
+    on_each_cpu(clear_dbg_regs_cpu, NULL, 1);
+}
+
+static inline void save_dbg_regs_all_cpus(void)
+{
+    on_each_cpu(save_dbg_regs_cpu, NULL, 1);
+}
+
+// ------------------------------------------------------------
+
 static inline s64 sign_extend_64(u64 val, int bits) {
     u64 shift = 64 - (u64)bits;
     return (s64)((val << shift)) >> shift;
@@ -591,6 +665,7 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 			put_task_struct(unreg_task);
 		}
 		x_unregister_hw_breakpoint(sample_hbp);
+		clear_dbg_regs_all_cpus();
 	}
 	
 	return 0;
@@ -622,6 +697,7 @@ static ssize_t OnCmdSuspendProcessHwbp(struct ioctl_request *hdr, char __user* b
 	mutex_unlock(&g_hwbp_handle_info_mutex);
 	if(found) {
 		if(!x_modify_user_hw_breakpoint(sample_hbp, &new_instruction_attr)) {
+			clear_dbg_regs_all_cpus();
 			return 0;
 		}
 	}
@@ -661,12 +737,12 @@ static ssize_t OnCmdResumeProcessHwbp(struct ioctl_request *hdr, char __user* bu
 }
 
 static ssize_t OnCmdGetHwbpHitCount(struct ioctl_request *hdr, char __user* buf) {
-	#pragma pack(1)
+#pragma pack(1)
 	struct buf_layout {
 		uint64_t hit_total_count;
 		uint64_t hit_item_arr_count;
 	};
-	#pragma pack()
+#pragma pack()
 	struct perf_event *sample_hbp = (struct perf_event *)hdr->param1;
 	struct buf_layout user_data = {0};
 	citerator iter;
@@ -867,18 +943,19 @@ static ssize_t OnCmdSetStepSimulate(struct ioctl_request *hdr, char __user* buf)
 		mutex_unlock(&info->hit_lock);
 	}
 	mutex_unlock(&g_hwbp_handle_info_mutex);
+	clear_dbg_regs_all_cpus();
 	return 0;
 }
 
 static ssize_t OnCmdGetTraceCount(struct ioctl_request *hdr, char __user* buf) {
-	#pragma pack(1)
+#pragma pack(1)
 	struct trace_count_data {
 		uint64_t count;
 		uint64_t capacity;
 		uint64_t item_size;
 		uint64_t mode;
 	};
-	#pragma pack()
+#pragma pack()
 	struct perf_event * sample_hbp = (struct perf_event *)hdr->param1;
 	struct trace_count_data out = {0};	
 	citerator iter;
@@ -1031,6 +1108,7 @@ static void clean_hwbp(void) {
 	  x_unregister_hw_breakpoint(bp);
 	}
 	cvector_destroy(wait_unregister_bp_arr);
+	clear_dbg_regs_all_cpus();
 }
 
 int hwbp_release(struct inode *inode, struct file *filp) {
@@ -1050,6 +1128,8 @@ int hwbp_init(void) {
 #endif
 	g_hwbp_handle_info_arr = cvector_create(sizeof(struct HWBP_HANDLE_INFO));
 	mutex_init(&g_hwbp_handle_info_mutex);
+	// 备份初始寄存器，便于退出时恢复
+	save_dbg_regs_all_cpus();
 
 #ifdef CONFIG_ANTI_PTRACE_DETECTION_MODE
 	start_anti_ptrace_detection(&g_hwbp_handle_info_mutex, &g_hwbp_handle_info_arr);
@@ -1079,6 +1159,9 @@ void hwbp_exit(void) {
 #endif
 
 	clean_hwbp();
+	// 退出时尽量恢复进入前的寄存器状态
+	on_each_cpu(restore_dbg_regs_cpu, NULL, 1);
 	
 	mutex_destroy(&g_hwbp_handle_info_mutex);
 }
+
