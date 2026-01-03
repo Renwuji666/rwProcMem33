@@ -166,7 +166,9 @@ static void trace_buffer_free(struct HWBP_HANDLE_INFO *info) {
 }
 
 static int trace_buffer_alloc(struct HWBP_HANDLE_INFO *info) {
-	size_t item_size;\tsize_t cap;\tvoid *buf;
+	size_t item_size;
+	size_t cap;
+	void *buf;
 	if (!info) return -EINVAL;
 	if (!g_trace_enabled) return 0;
 	cap = g_trace_capacity;
@@ -795,7 +797,8 @@ static ssize_t OnCmdSetTraceEnable(struct ioctl_request *hdr, char __user* buf) 
 }
 
 static ssize_t OnCmdSetTraceMode(struct ioctl_request *hdr, char __user* buf) {
-	int mode = (int)hdr->param1;\tciterator iter;
+	int mode = (int)hdr->param1;
+	citerator iter;
 	if (mode != TRACE_MODE_PC && mode != TRACE_MODE_FULL) {
 		return -EINVAL;
 	}
@@ -815,7 +818,8 @@ static ssize_t OnCmdSetTraceMode(struct ioctl_request *hdr, char __user* buf) {
 }
 
 static ssize_t OnCmdSetTraceBufferSize(struct ioctl_request *hdr, char __user* buf) {
-	size_t size = (size_t)hdr->param1;\tciterator iter;
+	size_t size = (size_t)hdr->param1;
+	citerator iter;
 	if (size == 0 || size > CONFIG_TRACE_MAX_SIZE) {
 		return -EINVAL;
 	}
@@ -900,7 +904,10 @@ static ssize_t OnCmdGetTraceCount(struct ioctl_request *hdr, char __user* buf) {
 }
 
 static ssize_t OnCmdGetTraceData(struct ioctl_request *hdr, char __user* buf) {
-	struct perf_event * sample_hbp = (struct perf_event *)hdr->param1;\tsize_t size = hdr->buf_size;\tciterator iter;\tssize_t copied = 0;
+	struct perf_event *sample_hbp = (struct perf_event *)hdr->param1;
+	size_t size = hdr->buf_size;
+	citerator iter;
+	ssize_t copied = 0;
 	if (!sample_hbp || size == 0) return -EINVAL;
 	mutex_lock(&g_hwbp_handle_info_mutex);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
