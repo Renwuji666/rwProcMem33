@@ -112,7 +112,7 @@ static __maybe_unused struct task_struct *x_get_current(void) {
 	return (struct task_struct *)sp_el0;
 }
 
-static void * x_kmalloc(size_t size, gfp_t flags) {
+static __maybe_unused void * x_kmalloc(size_t size, gfp_t flags) {
 	return __kmalloc(size, flags);
 }
 
