@@ -41,14 +41,16 @@ static void save_dbg_regs_cpu(void *unused)
 {
     int nb = getCpuNumBrps();
     int nw = getCpuNumWrps();
+    struct dbg_regs_snapshot *bak;
+    int i;
     if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
     if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
-    struct dbg_regs_snapshot *bak = this_cpu_ptr(&g_dbg_regs_bak);
-    for (int i = 0; i < nb; ++i) {
+    bak = this_cpu_ptr(&g_dbg_regs_bak);
+    for (i = 0; i < nb; ++i) {
         bak->bvr[i] = read_wb_reg(AARCH64_DBG_REG_BVR, i);
         bak->bcr[i] = read_wb_reg(AARCH64_DBG_REG_BCR, i);
     }
-    for (int i = 0; i < nw; ++i) {
+    for (i = 0; i < nw; ++i) {
         bak->wvr[i] = read_wb_reg(AARCH64_DBG_REG_WVR, i);
         bak->wcr[i] = read_wb_reg(AARCH64_DBG_REG_WCR, i);
     }
@@ -58,13 +60,14 @@ static void clear_dbg_regs_cpu(void *unused)
 {
     int nb = getCpuNumBrps();
     int nw = getCpuNumWrps();
+    int i;
     if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
     if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
-    for (int i = 0; i < nb; ++i) {
+    for (i = 0; i < nb; ++i) {
         write_wb_reg(AARCH64_DBG_REG_BCR, i, 0);
         write_wb_reg(AARCH64_DBG_REG_BVR, i, 0);
     }
-    for (int i = 0; i < nw; ++i) {
+    for (i = 0; i < nw; ++i) {
         write_wb_reg(AARCH64_DBG_REG_WCR, i, 0);
         write_wb_reg(AARCH64_DBG_REG_WVR, i, 0);
     }
@@ -75,14 +78,16 @@ static void restore_dbg_regs_cpu(void *unused)
 {
     int nb = getCpuNumBrps();
     int nw = getCpuNumWrps();
+    struct dbg_regs_snapshot *bak;
+    int i;
     if (nb > HWBP_MAX_SLOTS) nb = HWBP_MAX_SLOTS;
     if (nw > HWBP_MAX_SLOTS) nw = HWBP_MAX_SLOTS;
-    struct dbg_regs_snapshot *bak = this_cpu_ptr(&g_dbg_regs_bak);
-    for (int i = 0; i < nb; ++i) {
+    bak = this_cpu_ptr(&g_dbg_regs_bak);
+    for (i = 0; i < nb; ++i) {
         write_wb_reg(AARCH64_DBG_REG_BVR, i, bak->bvr[i]);
         write_wb_reg(AARCH64_DBG_REG_BCR, i, bak->bcr[i]);
     }
-    for (int i = 0; i < nw; ++i) {
+    for (i = 0; i < nw; ++i) {
         write_wb_reg(AARCH64_DBG_REG_WVR, i, bak->wvr[i]);
         write_wb_reg(AARCH64_DBG_REG_WCR, i, bak->wcr[i]);
     }
