@@ -397,14 +397,14 @@ static int rwProcMem_dev_init(void) {
 #endif
 
 #ifdef CONFIG_DEBUG_PRINTK
-	printk(KERN_EMERG "Hello, %s debug\n", CONFIG_PROC_NODE_AUTH_KEY);
+	printk(KERN_EMERG CONFIG_LOG_PREFIX "Hello, %s debug\n", CONFIG_PROC_NODE_AUTH_KEY);
 	//test1();
 	//test2();
 	//test3();
 	//test4();
 	//test5();
 #else
-	printk(KERN_EMERG "Hello\n");
+	printk(KERN_EMERG CONFIG_LOG_PREFIX "Hello\n");
 #endif
 	return 0;
 }
@@ -424,7 +424,7 @@ static void rwProcMem_dev_exit(void) {
 #endif
 	kfree(g_rwProcMem_devp);
 	hwbp_exit();
-	printk(KERN_EMERG "Goodbye\n");
+	printk(KERN_EMERG CONFIG_LOG_PREFIX "Goodbye\n");
 }
 
 int __init init_module(void) {
@@ -454,5 +454,5 @@ unsigned char * __check_fail_(unsigned char *result)
 unsigned long __stack_chk_guard;
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Linux");
-MODULE_DESCRIPTION("Linux default module");
+MODULE_AUTHOR("WuJi");
+MODULE_DESCRIPTION("WuJi merged rwProcMem + hwBreakpoint");

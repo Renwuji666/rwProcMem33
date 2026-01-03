@@ -8,10 +8,13 @@
 // 生成proc用户层交互节点文件
 #define CONFIG_USE_PROC_FILE_NODE
 // 隐蔽通信密钥
-#define CONFIG_PROC_NODE_AUTH_KEY "e84523d7b60d5d341a7c4d1861773ecd"
+#define CONFIG_PROC_NODE_AUTH_KEY "9c7e1a3b5d0f2c8e4a6b1d9f3e7c0a2b"
 
-// 调试打印模式
-#define CONFIG_DEBUG_PRINTK
+// 日志前缀
+#define CONFIG_LOG_PREFIX "[WuJi] "
+
+// 调试打印模式（默认关闭）
+// #define CONFIG_DEBUG_PRINTK
 
 // 动态寻址模式
 #define CONFIG_KALLSYMS_LOOKUP_NAME
