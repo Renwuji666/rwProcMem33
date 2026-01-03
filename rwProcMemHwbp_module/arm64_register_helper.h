@@ -110,7 +110,7 @@ static uint64_t calc_hw_addr(const struct perf_event_attr* attr, bool is_32bit_t
 	return hw_addr;
 }
 
-static bool toggle_bp_registers_directly(const struct perf_event_attr * attr, bool is_32bit_task, int enable) {
+static __maybe_unused bool toggle_bp_registers_directly(const struct perf_event_attr * attr, bool is_32bit_task, int enable) {
 	int i, max_slots, val_reg, ctrl_reg, cur_slot;
     u32 ctrl;
 	uint64_t hw_addr = calc_hw_addr(attr, is_32bit_task);

@@ -3,6 +3,7 @@
 
 #include "ver_control.h"
 #include "linux_kernel_api.h"
+#include <linux/compiler.h>
 #include <linux/ctype.h>
 #include <asm/uaccess.h>
 #include <linux/uaccess.h>
@@ -10,15 +11,15 @@
 
 #ifdef CONFIG_KALLSYMS_LOOKUP_NAME
 #include "kallsyms_lookup_api.h"
-static struct perf_event* x_register_user_hw_breakpoint(struct perf_event_attr *attr, perf_overflow_handler_t triggered, void *context, struct task_struct *tsk) {
+static __maybe_unused struct perf_event* x_register_user_hw_breakpoint(struct perf_event_attr *attr, perf_overflow_handler_t triggered, void *context, struct task_struct *tsk) {
 	return register_user_hw_breakpoint_sym(attr, triggered, context, tsk);
 }
 
-static void x_unregister_hw_breakpoint(struct perf_event *bp) {
+static __maybe_unused void x_unregister_hw_breakpoint(struct perf_event *bp) {
 	unregister_hw_breakpoint_sym(bp);
 }
 
-static int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_attr *attr) {
+static __maybe_unused int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_attr *attr) {
 #ifdef CONFIG_MODIFY_HIT_NEXT_MODE
 	return modify_user_hw_breakpoint_sym(bp, attr);
 #else
@@ -27,28 +28,28 @@ static int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_
 }
 
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
-static int x_user_enable_single_step(struct task_struct *task) {
+static __maybe_unused int x_user_enable_single_step(struct task_struct *task) {
 	if (!user_enable_single_step_sym)
 		return -ENOENT;
 	user_enable_single_step_sym(task);
 	return 0;
 }
 
-static int x_user_disable_single_step(struct task_struct *task) {
+static __maybe_unused int x_user_disable_single_step(struct task_struct *task) {
 	if (!user_disable_single_step_sym)
 		return -ENOENT;
 	user_disable_single_step_sym(task);
 	return 0;
 }
 
-static int x_register_step_hook(struct step_hook *hook) {
+static __maybe_unused int x_register_step_hook(struct step_hook *hook) {
 	if (!register_step_hook_sym)
 		return -ENOENT;
 	register_step_hook_sym(hook);
 	return 0;
 }
 
-static int x_unregister_step_hook(struct step_hook *hook) {
+static __maybe_unused int x_unregister_step_hook(struct step_hook *hook) {
 	if (!unregister_step_hook_sym)
 		return -ENOENT;
 	unregister_step_hook_sym(hook);
@@ -56,35 +57,35 @@ static int x_unregister_step_hook(struct step_hook *hook) {
 }
 #endif
 #else
-static struct perf_event* x_register_user_hw_breakpoint(struct perf_event_attr *attr, perf_overflow_handler_t triggered, void *context, struct task_struct *tsk) {
+static __maybe_unused struct perf_event* x_register_user_hw_breakpoint(struct perf_event_attr *attr, perf_overflow_handler_t triggered, void *context, struct task_struct *tsk) {
 	return register_user_hw_breakpoint(attr, triggered, context, tsk);
 }
 
-static void x_unregister_hw_breakpoint(struct perf_event *bp) {
+static __maybe_unused void x_unregister_hw_breakpoint(struct perf_event *bp) {
 	unregister_hw_breakpoint(bp);
 }
 
-static int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_attr *attr) {
+static __maybe_unused int x_modify_user_hw_breakpoint(struct perf_event *bp, struct perf_event_attr *attr) {
 	return modify_user_hw_breakpoint(bp, attr);
 }
 
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
-static int x_user_enable_single_step(struct task_struct *task) {
+static __maybe_unused int x_user_enable_single_step(struct task_struct *task) {
 	user_enable_single_step(task);
 	return 0;
 }
 
-static int x_user_disable_single_step(struct task_struct *task) {
+static __maybe_unused int x_user_disable_single_step(struct task_struct *task) {
 	user_disable_single_step(task);
 	return 0;
 }
 
-static int x_register_step_hook(struct step_hook *hook) {
+static __maybe_unused int x_register_step_hook(struct step_hook *hook) {
 	register_step_hook(hook);
 	return 0;
 }
 
-static int x_unregister_step_hook(struct step_hook *hook) {
+static __maybe_unused int x_unregister_step_hook(struct step_hook *hook) {
 	unregister_step_hook(hook);
 	return 0;
 }

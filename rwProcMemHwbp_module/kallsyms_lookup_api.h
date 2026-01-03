@@ -10,6 +10,7 @@
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <linux/kprobes.h>
+#include <linux/compiler.h>
 
 static unsigned long (*kallsyms_lookup_name_sym)(const char *name);
 static struct perf_event* (*register_user_hw_breakpoint_sym)(struct perf_event_attr *attr, perf_overflow_handler_t triggered, void *context, struct task_struct *tsk);
@@ -50,7 +51,7 @@ static unsigned long generic_kallsyms_lookup_name(const char *name) {
 	return kallsyms_lookup_name_sym(name);
 }
 
-static bool init_kallsyms_lookup(void) {
+static __maybe_unused bool init_kallsyms_lookup(void) {
 	register_user_hw_breakpoint_sym = (void *)generic_kallsyms_lookup_name("register_user_hw_breakpoint");
 	printk_debug(KERN_EMERG "register_user_hw_breakpoint_sym:%px\n", register_user_hw_breakpoint_sym);
 	if(!register_user_hw_breakpoint_sym) { return false; }
