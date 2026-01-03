@@ -370,6 +370,8 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 					toggle_bp_registers_directly(&hwbp_handle_info->original_attr, hwbp_handle_info->is_32bit_task, 1);
 				}
 			}
+			// 单步结束后清理未用寄存器，缩短暴露窗口
+			clear_dbg_regs_all_cpus();
 			handled = DBG_HOOK_HANDLED;
 		}
 		mutex_unlock(&hwbp_handle_info->hit_lock);
@@ -1164,4 +1166,3 @@ void hwbp_exit(void) {
 	
 	mutex_destroy(&g_hwbp_handle_info_mutex);
 }
-
