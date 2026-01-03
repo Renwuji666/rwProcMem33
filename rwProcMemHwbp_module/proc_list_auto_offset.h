@@ -75,6 +75,21 @@ static inline int init_task_pid_offset(int pid, int tgid) {
         return 0;
     }
 
+    for (off = 0; off <= sizeof(*mytask) - sizeof(void*); off += 4) {
+        void *v = *(void **)(addr_mytask + off);
+        if ((uintptr_t)v == addr_mm) {
+            off_mm = off;
+            break;
+        }
+    }
+    if (off_mm == 0) {
+        printk_debug(KERN_EMERG "init_task_pid_offset: mm_struct offset not found\n");
+        mmput(mm);
+        return -EFAULT;
+    }
+    printk_debug(KERN_INFO "init_task_pid_offset: mm_struct offset found = %zu\n", off_mm);
+
+    /* 2) 从 mm_struct 偏移处开始，搜索 pid 和 tgid */
     for (off = off_mm; off <= sizeof(*mytask) - 2 * sizeof(pid_t); off += 4) {
         pid_t pid_v  = *(pid_t *)(addr_mytask + off);
         pid_t tgid_v = *(pid_t *)(addr_mytask + off + sizeof(pid_t));
