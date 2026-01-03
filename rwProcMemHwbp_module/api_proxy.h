@@ -106,7 +106,7 @@ static inline int x_atoi(const char arr[]) {
 	return flag * num;
 }
 
-static struct task_struct *x_get_current(void) {
+static __maybe_unused struct task_struct *x_get_current(void) {
 	unsigned long sp_el0;
 	asm ("mrs %0, sp_el0" : "=r" (sp_el0));
 	return (struct task_struct *)sp_el0;
