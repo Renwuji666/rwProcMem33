@@ -4,6 +4,9 @@
 
 #include <linux/module.h>
 #include <linux/compiler.h>
+#include <linux/mm.h>
+#include <linux/mm_types.h>
+#include <asm/pgtable.h>
 
 #if MY_LINUX_VERSION_CODE < KERNEL_VERSION(5,8,0)
  
