@@ -368,15 +368,20 @@ static ssize_t rwProcMem_read(struct file* filp,
     struct ioctl_request hdr = {0};
     size_t header_size = sizeof(hdr);
 
+    printk_debug(KERN_INFO "rwProcMem_read size=%zu\n", size);
     if (size < header_size) {
+        printk_debug(KERN_ERR "rwProcMem_read size < header_size (%zu < %zu)\n", size, header_size);
         return -EINVAL;
     }
 
     if (x_copy_from_user(&hdr, buf, header_size)) {
+        printk_debug(KERN_ERR "rwProcMem_read copy_from_user header failed\n");
         return -EFAULT;
     }
 
+    printk_debug(KERN_INFO "rwProcMem_read cmd=%d buf_size=%llu\n", hdr.cmd, hdr.buf_size);
     if (size < header_size + hdr.buf_size) {
+        printk_debug(KERN_ERR "rwProcMem_read size < header+buf (%zu < %zu)\n", size, header_size + hdr.buf_size);
         return -EINVAL;
     }
 
