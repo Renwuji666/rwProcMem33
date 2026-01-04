@@ -124,7 +124,7 @@ static struct kretprobe kretp_ptrace = {
     .data_size  = sizeof(struct hook_ptrace_data),
     .entry_handler    = entry_ptrace_handler,
     .handler    = ret_ptrace_handler,
-    .maxactive  = 20,
+    .maxactive  = 64,
 };
 
 static bool start_anti_ptrace_detection(struct mutex *p_hwbp_handle_info_mutex, cvector *p_hwbp_handle_info_arr) {
