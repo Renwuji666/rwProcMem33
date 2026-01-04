@@ -13,7 +13,7 @@ extern int rwpm_hide_module_internal(void);
 static atomic64_t g_hook_pc;
 
 
-static struct mutex g_hwbp_handle_info_mutex;
+static rwlock_t g_hwbp_handle_info_lock;
 static cvector g_hwbp_handle_info_arr = NULL;
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
 static struct step_hook g_step_hook;
@@ -316,7 +316,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 	int handled = DBG_HOOK_ERROR;
 	if (!task) return DBG_HOOK_ERROR;
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if (!hwbp_handle_info->task || hwbp_handle_info->task_id != task_pid_nr(task)) {
@@ -382,7 +382,7 @@ static int hwbp_step_hook(struct pt_regs *regs, unsigned int esr) {
 		mutex_unlock(&hwbp_handle_info->hit_lock);
 		break;
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return handled;
 }
 #endif
@@ -403,7 +403,7 @@ static void hwbp_handler(struct perf_event *bp,
 		return;
 	}
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if (hwbp_handle_info->sample_hbp != bp) {
@@ -476,7 +476,7 @@ static void hwbp_handler(struct perf_event *bp,
 		mutex_unlock(&hwbp_handle_info->hit_lock);
 	}
 	
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 }
 
 
@@ -612,12 +612,12 @@ static ssize_t OnCmdInstProcessHwbp(struct ioctl_request *hdr, char __user* buf)
 		return ret;
 	}
 	hwbp_handle_info.hit_item_arr = cvector_create(sizeof(struct HWBP_HIT_ITEM));
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	cvector_pushback(g_hwbp_handle_info_arr, &hwbp_handle_info);
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 
 	if (g_trace_enabled) {
-		mutex_lock(&g_hwbp_handle_info_mutex);
+		write_lock(&g_hwbp_handle_info_lock);
 		for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 			struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 			if (info->sample_hbp == hwbp_handle_info.sample_hbp) {
@@ -627,7 +627,7 @@ static ssize_t OnCmdInstProcessHwbp(struct ioctl_request *hdr, char __user* buf)
 				break;
 			}
 		}
-		mutex_unlock(&g_hwbp_handle_info_mutex);
+		write_unlock(&g_hwbp_handle_info_lock);
 	}
 
 	if (x_copy_to_user((void*)buf, &hwbp_handle_info.sample_hbp, sizeof(uint64_t))) {
@@ -647,7 +647,7 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 		return -EFAULT;
 	}
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->sample_hbp == sample_hbp) {
@@ -666,7 +666,7 @@ static ssize_t OnCmdUninstProcessHwbp(struct ioctl_request *hdr, char __user* bu
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	if(found) {
 		if (unreg_task) {
 			put_task_struct(unreg_task);
@@ -689,7 +689,7 @@ static ssize_t OnCmdSuspendProcessHwbp(struct ioctl_request *hdr, char __user* b
 		return -EFAULT;
 	}
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->sample_hbp == sample_hbp) {
@@ -701,7 +701,7 @@ static ssize_t OnCmdSuspendProcessHwbp(struct ioctl_request *hdr, char __user* b
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	if(found) {
 		if(!x_modify_user_hw_breakpoint(sample_hbp, &new_instruction_attr)) {
 			clear_dbg_regs_all_cpus();
@@ -722,7 +722,7 @@ static ssize_t OnCmdResumeProcessHwbp(struct ioctl_request *hdr, char __user* bu
 		return -EFAULT;
 	}
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->sample_hbp == sample_hbp) {
@@ -734,7 +734,7 @@ static ssize_t OnCmdResumeProcessHwbp(struct ioctl_request *hdr, char __user* bu
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	if(found) {
 		if(!x_modify_user_hw_breakpoint(sample_hbp, &new_instruction_attr)) {
 			return 0;
@@ -756,7 +756,7 @@ static ssize_t OnCmdGetHwbpHitCount(struct ioctl_request *hdr, char __user* buf)
 	printk_debug(KERN_INFO "CMD_GET_HWBP_HIT_COUNT\n");
 	printk_debug(KERN_INFO "sample_hbp *:%px\n", sample_hbp);
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if (hwbp_handle_info->sample_hbp == sample_hbp && hwbp_handle_info->hit_item_arr) {
@@ -768,7 +768,7 @@ static ssize_t OnCmdGetHwbpHitCount(struct ioctl_request *hdr, char __user* buf)
 		}
 	}
 
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	
 	printk_debug(KERN_INFO "user_data.hit_total_count:%zu\n", user_data.hit_total_count);
 	if (x_copy_to_user((void*)buf, &user_data, sizeof(user_data))) {
@@ -790,7 +790,7 @@ static ssize_t OnCmdGetHwbpHitDetail(struct ioctl_request *hdr, char __user* buf
 	copy_pos = (size_t)buf;
 	end_pos = (size_t)((size_t)buf + size);
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if (hwbp_handle_info->sample_hbp == sample_hbp && hwbp_handle_info->hit_item_arr) {
@@ -811,7 +811,7 @@ static ssize_t OnCmdGetHwbpHitDetail(struct ioctl_request *hdr, char __user* buf
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return count;
 }
 
@@ -824,7 +824,7 @@ static ssize_t OnCmdClearHwbpHit(struct ioctl_request *hdr, char __user* buf) {
 		return -EFAULT;
 	}
 
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if (hwbp_handle_info->sample_hbp == sample_hbp) {
@@ -835,11 +835,11 @@ static ssize_t OnCmdClearHwbpHit(struct ioctl_request *hdr, char __user* buf) {
 			}
 			hwbp_handle_info->hit_item_arr = cvector_create(sizeof(struct HWBP_HIT_ITEM));
 			mutex_unlock(&hwbp_handle_info->hit_lock);
-			mutex_unlock(&g_hwbp_handle_info_mutex);
+			write_unlock(&g_hwbp_handle_info_lock);
 			return 0;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return -EINVAL;
 }
 
@@ -864,7 +864,7 @@ static ssize_t OnCmdSetTraceEnable(struct ioctl_request *hdr, char __user* buf) 
 	bool enable = hdr->param1 ? true : false;
 	citerator iter;
 	g_trace_enabled = enable;
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		mutex_lock(&info->hit_lock);
@@ -875,7 +875,7 @@ static ssize_t OnCmdSetTraceEnable(struct ioctl_request *hdr, char __user* buf) 
 		}
 		mutex_unlock(&info->hit_lock);
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return 0;
 }
 
@@ -889,14 +889,14 @@ static ssize_t OnCmdSetTraceMode(struct ioctl_request *hdr, char __user* buf) {
 	if (!g_trace_enabled) {
 		return 0;
 	}
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		mutex_lock(&info->hit_lock);
 		trace_buffer_reset(info);
 		mutex_unlock(&info->hit_lock);
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return 0;
 }
 
@@ -910,14 +910,14 @@ static ssize_t OnCmdSetTraceBufferSize(struct ioctl_request *hdr, char __user* b
 	if (!g_trace_enabled) {
 		return 0;
 	}
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		mutex_lock(&info->hit_lock);
 		trace_buffer_reset(info);
 		mutex_unlock(&info->hit_lock);
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return 0;
 }
 
@@ -937,7 +937,7 @@ static ssize_t OnCmdSetStepSimulate(struct ioctl_request *hdr, char __user* buf)
 	if (enable) {
 		return 0;
 	}
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		mutex_lock(&info->hit_lock);
@@ -949,7 +949,7 @@ static ssize_t OnCmdSetStepSimulate(struct ioctl_request *hdr, char __user* buf)
 		}
 		mutex_unlock(&info->hit_lock);
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	clear_dbg_regs_all_cpus();
 	return 0;
 }
@@ -967,7 +967,7 @@ static ssize_t OnCmdGetTraceCount(struct ioctl_request *hdr, char __user* buf) {
 	struct trace_count_data out = {0};	
 	citerator iter;
 	if (!sample_hbp) return -EINVAL;
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		if (info->sample_hbp == sample_hbp) {
@@ -980,7 +980,7 @@ static ssize_t OnCmdGetTraceCount(struct ioctl_request *hdr, char __user* buf) {
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	if (x_copy_to_user((void*)buf, &out, sizeof(out))) {
 		return -EFAULT;
 	}
@@ -993,14 +993,14 @@ static ssize_t OnCmdGetTraceData(struct ioctl_request *hdr, char __user* buf) {
 	citerator iter;
 	ssize_t copied = 0;
 	if (!sample_hbp || size == 0) return -EINVAL;
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO *info = (struct HWBP_HANDLE_INFO *)iter;
 		if (info->sample_hbp == sample_hbp) {
 			mutex_lock(&info->hit_lock);
 			if (!info->trace_buf || info->trace_item_size == 0) {
 				mutex_unlock(&info->hit_lock);
-				mutex_unlock(&g_hwbp_handle_info_mutex);
+				write_unlock(&g_hwbp_handle_info_lock);
 				return -EINVAL;
 			}
 			{
@@ -1027,7 +1027,7 @@ static ssize_t OnCmdGetTraceData(struct ioctl_request *hdr, char __user* buf) {
 			break;
 		}
 	}
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return copied;
 }
 ssize_t hwbp_dispatch(struct ioctl_request *hdr, char __user* buf) {
@@ -1086,7 +1086,7 @@ static void clean_hwbp(void) {
 	if(!wait_unregister_bp_arr || !g_hwbp_handle_info_arr) {
 		return;
 	}
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	for (iter = cvector_begin(g_hwbp_handle_info_arr); iter != cvector_end(g_hwbp_handle_info_arr); iter = cvector_next(g_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->sample_hbp) {
@@ -1108,7 +1108,7 @@ static void clean_hwbp(void) {
 	}
 	cvector_destroy(g_hwbp_handle_info_arr);
 	g_hwbp_handle_info_arr = NULL;
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	
 	for (iter = cvector_begin(wait_unregister_bp_arr); iter != cvector_end(wait_unregister_bp_arr); iter = cvector_next(wait_unregister_bp_arr, iter)) {
 	  struct perf_event * bp = *(struct perf_event **)iter;
@@ -1120,9 +1120,9 @@ static void clean_hwbp(void) {
 
 int hwbp_release(struct inode *inode, struct file *filp) {
 	clean_hwbp();
-	mutex_lock(&g_hwbp_handle_info_mutex);
+	write_lock(&g_hwbp_handle_info_lock);
 	g_hwbp_handle_info_arr = cvector_create(sizeof(struct HWBP_HANDLE_INFO));
-	mutex_unlock(&g_hwbp_handle_info_mutex);
+	write_unlock(&g_hwbp_handle_info_lock);
 	return 0;
 }
 
@@ -1134,12 +1134,12 @@ int hwbp_init(void) {
 	}
 #endif
 	g_hwbp_handle_info_arr = cvector_create(sizeof(struct HWBP_HANDLE_INFO));
-	mutex_init(&g_hwbp_handle_info_mutex);
+	rwlock_init(&g_hwbp_handle_info_lock);
 	// 备份初始寄存器，便于退出时恢复
 	save_dbg_regs_all_cpus();
 
 #ifdef CONFIG_ANTI_PTRACE_DETECTION_MODE
-	start_anti_ptrace_detection(&g_hwbp_handle_info_mutex, &g_hwbp_handle_info_arr);
+	start_anti_ptrace_detection(&g_hwbp_handle_info_lock, &g_hwbp_handle_info_arr);
 #endif
 
 #ifdef CONFIG_USE_SINGLE_STEP_MODE
@@ -1169,5 +1169,4 @@ void hwbp_exit(void) {
 	// 退出时尽量恢复进入前的寄存器状态
 	on_each_cpu(restore_dbg_regs_cpu, NULL, 1);
 	
-	mutex_destroy(&g_hwbp_handle_info_mutex);
 }
