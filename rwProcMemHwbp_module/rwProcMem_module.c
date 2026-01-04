@@ -21,6 +21,7 @@ static ssize_t OnCmdInitDeviceInfo(struct ioctl_request *hdr, char __user* buf) 
 	long err = 0;
 	struct init_device_info* pinit_device_info = (struct init_device_info*)x_kmalloc(sizeof(struct init_device_info), GFP_KERNEL);
 	if (!pinit_device_info) {
+		printk_debug(KERN_ERR "INIT_DEVICE_INFO: kmalloc failed\n");
 		return -ENOMEM;
 	}
 	printk_debug(KERN_INFO "CMD_INIT_DEVICE_INFO\n");
@@ -32,19 +33,26 @@ static ssize_t OnCmdInitDeviceInfo(struct ioctl_request *hdr, char __user* buf) 
 		
 		do {
 			err = init_mmap_lock_offset();
-			if(err) { break; }
+			if(err) { printk_debug(KERN_ERR "init_mmap_lock_offset failed: %ld\n", err); break; }
 			err = init_map_count_offset();
-			if(err) { break; }
+			if(err) { printk_debug(KERN_ERR "init_map_count_offset failed: %ld\n", err); break; }
 			err = init_proc_cmdline_offset(&pinit_device_info->my_auxv[0], pinit_device_info->my_auxv_size);
-			if(err) { break; }
+			if(err) { printk_debug(KERN_ERR "init_proc_cmdline_offset failed: %ld\n", err); break; }
 			err = init_proc_root_offset(pinit_device_info->my_name);
-			if(err) { break; }
+			if(err) { printk_debug(KERN_ERR "init_proc_root_offset failed: %ld\n", err); break; }
 			err = init_task_next_offset();
-			if(err) { break; }
+			if(err) { printk_debug(KERN_ERR "init_task_next_offset failed: %ld\n", err); break; }
 			err = init_task_pid_offset(pinit_device_info->pid, pinit_device_info->tgid);
+			if(err) { printk_debug(KERN_ERR "init_task_pid_offset failed: %ld\n", err); }
 		} while(0);
 	} else {
+		printk_debug(KERN_ERR "INIT_DEVICE_INFO: copy_from_user failed\n");
 		err = -EINVAL;
+	}
+	if (err == 0) {
+		printk_debug(KERN_INFO "INIT_DEVICE_INFO ok\n");
+	} else {
+		printk_debug(KERN_ERR "INIT_DEVICE_INFO failed: %ld\n", err);
 	}
 	kfree(pinit_device_info);
 	return err;
