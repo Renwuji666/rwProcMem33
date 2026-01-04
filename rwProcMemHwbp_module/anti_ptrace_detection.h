@@ -6,6 +6,7 @@
 #include <linux/version.h>
 #include <linux/hw_breakpoint.h>
 #include <linux/kprobes.h>
+#include <linux/rwlock.h>
 
 #define PTRACE_GETREGSET   0x4204
 #define NT_ARM_HW_BREAK	0x402		/* ARM hardware breakpoint registers */
@@ -15,7 +16,7 @@ struct hook_ptrace_data {
     struct iovec iov;
 };
 
-static struct mutex *g_p_hwbp_handle_info_mutex = NULL;
+static rwlock_t *g_p_hwbp_handle_info_lock = NULL;
 static cvector *g_p_hwbp_handle_info_arr = NULL;
 
 static inline bool access_ok_compat(const void __user *addr, unsigned long size)
@@ -33,7 +34,7 @@ static bool is_my_hwbp_handle_addr(size_t addr) {
 	if(addr == 0) {
 		return found;
 	}
-	mutex_lock(g_p_hwbp_handle_info_mutex);
+	read_lock(g_p_hwbp_handle_info_lock);
 	for (iter = cvector_begin(*g_p_hwbp_handle_info_arr); iter != cvector_end(*g_p_hwbp_handle_info_arr); iter = cvector_next(*g_p_hwbp_handle_info_arr, iter)) {
 		struct HWBP_HANDLE_INFO * hwbp_handle_info = (struct HWBP_HANDLE_INFO *)iter;
 		if(hwbp_handle_info->original_attr.bp_addr == addr) {
@@ -41,7 +42,7 @@ static bool is_my_hwbp_handle_addr(size_t addr) {
 			break;
 		}
 	}
-	mutex_unlock(g_p_hwbp_handle_info_mutex);
+	read_unlock(g_p_hwbp_handle_info_lock);
 	return found;
 }
 
@@ -127,11 +128,11 @@ static struct kretprobe kretp_ptrace = {
     .maxactive  = 64,
 };
 
-static bool start_anti_ptrace_detection(struct mutex *p_hwbp_handle_info_mutex, cvector *p_hwbp_handle_info_arr) {
+static bool start_anti_ptrace_detection(rwlock_t *p_hwbp_handle_info_lock, cvector *p_hwbp_handle_info_arr) {
     int ret = 0;
-    g_p_hwbp_handle_info_mutex = p_hwbp_handle_info_mutex;
+    g_p_hwbp_handle_info_lock = p_hwbp_handle_info_lock;
     g_p_hwbp_handle_info_arr = p_hwbp_handle_info_arr;
-    if(!g_p_hwbp_handle_info_mutex || !g_p_hwbp_handle_info_arr) {
+    if(!g_p_hwbp_handle_info_lock || !g_p_hwbp_handle_info_arr) {
         printk_debug(KERN_INFO "start_anti_ptrace_detection param error\n");
         return false;
     }
