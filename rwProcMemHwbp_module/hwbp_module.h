@@ -18,6 +18,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/ksm.h>
 #include <linux/mutex.h>
+#include <linux/rwlock.h>
 #include <linux/ktime.h>
 #include <linux/pid.h>
 #include <linux/slab.h>
@@ -29,7 +30,7 @@
 
 enum {
 	CMD_HWBP_BASE = 0x40,
-	CMD_HWBP_OPEN_PROCESS = CMD_HWBP_BASE, 	// 打开进程
+	CMD_HWBP_OPEN_PROCESS = CMD_HWBP_BASE, 	// 打开进程
 	CMD_HWBP_CLOSE_PROCESS, 				// 关闭进程
 	CMD_HWBP_READ_PROCESS_MEM, 			// 读取进程内存
 	CMD_HWBP_GET_NUM_BRPS, 				// 获取CPU硬件执行断点支持数量
@@ -39,17 +40,17 @@ enum {
 	CMD_HWBP_SUSPEND_PROCESS_HWBP,		// 暂停进程硬件断点
 	CMD_HWBP_RESUME_PROCESS_HWBP,		// 恢复进程硬件断点
 	CMD_HWBP_GET_HWBP_HIT_COUNT,			// 获取硬件断点命中地址数量
-	CMD_HWBP_GET_HWBP_HIT_DETAIL,		// 获取硬件断点命中详细信息
+	CMD_HWBP_GET_HWBP_HIT_DETAIL,			// 获取硬件断点命中详细信息
 	CMD_HWBP_CLEAR_HWBP_HIT,				// 清空硬件断点命中缓存
 	CMD_HWBP_SET_HOOK_PC,				// 设置无条件Hook跳转
 	CMD_HWBP_HIDE_KERNEL_MODULE,			// 隐藏驱动
 	CMD_HWBP_SET_TRACE_ENABLE,			// 开关代码追踪
-	CMD_HWBP_SET_TRACE_MODE,				// 设置追踪模式
+	CMD_HWBP_SET_TRACE_MODE,			// 设置追踪模式
 	CMD_HWBP_SET_TRACE_BUFFER_SIZE,		// 设置追踪缓冲大小
 	CMD_HWBP_SET_TRACE_STEP_COUNT,		// 设置追踪步数
 	CMD_HWBP_SET_STEP_SIMULATE,			// 指令模拟步进
 	CMD_HWBP_GET_TRACE_COUNT,			// 获取追踪记录数量
-	CMD_HWBP_GET_TRACE_DATA,				// 获取追踪记录数据
+	CMD_HWBP_GET_TRACE_DATA,			// 获取追踪记录数据
 };
 
 int hwbp_init(void);
