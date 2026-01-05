@@ -361,22 +361,6 @@ static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* bu
 	return -EINVAL;
 }
 
-static void remove_proc_entry_if_needed(void) {
-#ifdef CONFIG_USE_PROC_FILE_NODE
-	if (g_rwProcMem_devp) {
-		if (g_rwProcMem_devp->proc_entry) {
-			proc_remove(g_rwProcMem_devp->proc_entry);
-			g_rwProcMem_devp->proc_entry = NULL;
-		}
-		if (g_rwProcMem_devp->proc_parent) {
-			proc_remove(g_rwProcMem_devp->proc_parent);
-			g_rwProcMem_devp->proc_parent = NULL;
-		}
-		stop_hide_procfs_dir();
-	}
-#endif
-}
-
 static void create_proc_entry_if_needed(void) {
 #ifdef CONFIG_USE_PROC_FILE_NODE
 	if (g_rwProcMem_devp && !g_rwProcMem_devp->proc_entry) {
@@ -416,17 +400,8 @@ static ssize_t rwProcMem_read(struct file* filp,
 	return DispatchCommand(&hdr, buf + header_size);
 }
 
-static int rwProcMem_open(struct inode *inode, struct file *filp) {
-	atomic_inc(&g_proc_open_cnt);
-	remove_proc_entry_if_needed();
-	return 0;
-}
-
 static int rwProcMem_release(struct inode *inode, struct file *filp) {
 	int ret = hwbp_release(inode, filp);
-	if (atomic_dec_and_test(&g_proc_open_cnt)) {
-		create_proc_entry_if_needed();
-	}
 	return ret;
 }
 
@@ -438,7 +413,6 @@ static int rwProcMem_dev_init(void) {
 	}
 	g_rwProcMem_devp = x_kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	memset(g_rwProcMem_devp, 0, sizeof(struct rwProcMemDev));
-	atomic_set(&g_proc_open_cnt, 0);
 
 #ifdef CONFIG_USE_PROC_FILE_NODE
 	create_proc_entry_if_needed();
@@ -464,7 +438,16 @@ static int rwProcMem_dev_init(void) {
 
 static void rwProcMem_dev_exit(void) {
 #ifdef CONFIG_USE_PROC_FILE_NODE
-	remove_proc_entry_if_needed();
+	if(g_rwProcMem_devp->proc_entry) {
+		proc_remove(g_rwProcMem_devp->proc_entry);
+		g_rwProcMem_devp->proc_entry = NULL;
+	}
+	
+	if(g_rwProcMem_devp->proc_parent) {
+		proc_remove(g_rwProcMem_devp->proc_parent);
+		g_rwProcMem_devp->proc_parent = NULL;
+	}
+	stop_hide_procfs_dir();
 #endif
 	kfree(g_rwProcMem_devp);
 	hwbp_exit();
