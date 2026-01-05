@@ -8,6 +8,7 @@
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/init.h>
+#include <linux/atomic.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <linux/uaccess.h>
@@ -56,17 +57,21 @@ struct rwProcMemDev {
 	bool is_hidden_module; //是否已经隐藏过驱动列表了
 };
 static struct rwProcMemDev *g_rwProcMem_devp;
+static atomic_t g_proc_open_cnt;
 
 static ssize_t rwProcMem_read(struct file* filp, char __user* buf, size_t size, loff_t* ppos);
+static int rwProcMem_open(struct inode *inode, struct file *filp);
 static int rwProcMem_release(struct inode *inode, struct file *filp);
 #ifdef CONFIG_USE_PROC_FILE_NODE
 #if MY_LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static const struct file_operations rwProcMem_proc_ops = {
+    .open = rwProcMem_open,
     .read = rwProcMem_read,
 	.release = rwProcMem_release,
 };
 #else
 static const struct proc_ops rwProcMem_proc_ops = {
+    .proc_open = rwProcMem_open,
     .proc_read = rwProcMem_read,
 	.proc_release = rwProcMem_release,
 };

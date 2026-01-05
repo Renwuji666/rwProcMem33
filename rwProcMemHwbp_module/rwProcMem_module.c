@@ -361,10 +361,38 @@ static inline ssize_t DispatchCommand(struct ioctl_request *hdr, char __user* bu
 	return -EINVAL;
 }
 
+static void remove_proc_entry_if_needed(void) {
+#ifdef CONFIG_USE_PROC_FILE_NODE
+	if (g_rwProcMem_devp) {
+		if (g_rwProcMem_devp->proc_entry) {
+			proc_remove(g_rwProcMem_devp->proc_entry);
+			g_rwProcMem_devp->proc_entry = NULL;
+		}
+		if (g_rwProcMem_devp->proc_parent) {
+			proc_remove(g_rwProcMem_devp->proc_parent);
+			g_rwProcMem_devp->proc_parent = NULL;
+		}
+		stop_hide_procfs_dir();
+	}
+#endif
+}
+
+static void create_proc_entry_if_needed(void) {
+#ifdef CONFIG_USE_PROC_FILE_NODE
+	if (g_rwProcMem_devp && !g_rwProcMem_devp->proc_entry) {
+		g_rwProcMem_devp->proc_parent = proc_mkdir(CONFIG_PROC_NODE_AUTH_KEY, NULL);
+		if (g_rwProcMem_devp->proc_parent) {
+			g_rwProcMem_devp->proc_entry = proc_create(CONFIG_PROC_NODE_AUTH_KEY, S_IRUGO | S_IWUGO, g_rwProcMem_devp->proc_parent, &rwProcMem_proc_ops);
+			start_hide_procfs_dir(CONFIG_PROC_NODE_AUTH_KEY);
+		}
+	}
+#endif
+}
+
 static ssize_t rwProcMem_read(struct file* filp,
-                              char __user* buf,
-                              size_t size,
-                              loff_t* ppos) {
+	                          char __user* buf,
+	                          size_t size,
+	                          loff_t* ppos) {
     struct ioctl_request hdr = {0};
     size_t header_size = sizeof(hdr);
 
@@ -385,11 +413,21 @@ static ssize_t rwProcMem_read(struct file* filp,
         return -EINVAL;
     }
 
-    return DispatchCommand(&hdr, buf + header_size);
+	return DispatchCommand(&hdr, buf + header_size);
+}
+
+static int rwProcMem_open(struct inode *inode, struct file *filp) {
+	atomic_inc(&g_proc_open_cnt);
+	remove_proc_entry_if_needed();
+	return 0;
 }
 
 static int rwProcMem_release(struct inode *inode, struct file *filp) {
-	return hwbp_release(inode, filp);
+	int ret = hwbp_release(inode, filp);
+	if (atomic_dec_and_test(&g_proc_open_cnt)) {
+		create_proc_entry_if_needed();
+	}
+	return ret;
 }
 
 static int rwProcMem_dev_init(void) {
@@ -400,13 +438,10 @@ static int rwProcMem_dev_init(void) {
 	}
 	g_rwProcMem_devp = x_kmalloc(sizeof(struct rwProcMemDev), GFP_KERNEL);
 	memset(g_rwProcMem_devp, 0, sizeof(struct rwProcMemDev));
+	atomic_set(&g_proc_open_cnt, 0);
 
 #ifdef CONFIG_USE_PROC_FILE_NODE
-	g_rwProcMem_devp->proc_parent = proc_mkdir(CONFIG_PROC_NODE_AUTH_KEY, NULL);
-	if(g_rwProcMem_devp->proc_parent) {
-		g_rwProcMem_devp->proc_entry = proc_create(CONFIG_PROC_NODE_AUTH_KEY, S_IRUGO | S_IWUGO, g_rwProcMem_devp->proc_parent, &rwProcMem_proc_ops);
-		start_hide_procfs_dir(CONFIG_PROC_NODE_AUTH_KEY);
-	}
+	create_proc_entry_if_needed();
 #endif
 
 #ifdef CONFIG_DEBUG_PRINTK
@@ -429,16 +464,7 @@ static int rwProcMem_dev_init(void) {
 
 static void rwProcMem_dev_exit(void) {
 #ifdef CONFIG_USE_PROC_FILE_NODE
-	if(g_rwProcMem_devp->proc_entry) {
-		proc_remove(g_rwProcMem_devp->proc_entry);
-		g_rwProcMem_devp->proc_entry = NULL;
-	}
-	
-	if(g_rwProcMem_devp->proc_parent) {
-		proc_remove(g_rwProcMem_devp->proc_parent);
-		g_rwProcMem_devp->proc_parent = NULL;
-	}
-	stop_hide_procfs_dir();
+	remove_proc_entry_if_needed();
 #endif
 	kfree(g_rwProcMem_devp);
 	hwbp_exit();
