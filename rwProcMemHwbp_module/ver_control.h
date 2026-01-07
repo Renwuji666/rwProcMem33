@@ -22,7 +22,7 @@
 #define CONFIG_KALLSYMS_LOOKUP_NAME
 
 // 使用CPU单步标志模式（真单步）
-#define CONFIG_USE_SINGLE_STEP_MODE
+/* CPU single-step disabled: use simulated step (next PC) only */
 
 // 精准命中记录模式（单步模式时自动关闭）
 #define CONFIG_MODIFY_HIT_NEXT_MODE
